@@ -1,0 +1,129 @@
+@page "/settings/import"
+@model MuseFM.Pages.Settings.ImportModel
+@{
+    ViewData["Title"] = "Import";
+    ViewData["Tab"] = "import";
+}
+@section Head {
+    @if (Model.HasActiveJobs)
+    {
+        <meta http-equiv="refresh" content="4">
+    }
+}
+<partial name="_SettingsNav" />
+
+@if (Model.StatusMessage is not null)
+{
+    <div class="alert @(Model.StatusIsError ? "error" : "success")">@Model.StatusMessage</div>
+}
+
+<p class="muted">Imports run in the background. Scrobbles you already have (same timestamp) are skipped, so importing the same file twice is safe.</p>
+
+<div class="grid-2">
+    <section class="card">
+        <h2>Upload a file</h2>
+        <form method="post" asp-page-handler="Upload" enctype="multipart/form-data">
+            <label class="field">
+                <span>Export file</span>
+                <input type="file" name="file" accept=".json,.jsonl,.csv,.zip" required>
+            </label>
+            <label class="field">
+                <span>Format</span>
+                <select name="format">
+                    <option value="">Detect automatically</option>
+                    <option value="MalojaJson">Maloja export (maloja_export_*.json)</option>
+                    <option value="LastFmCsv">Last.fm CSV (lastfm-to-csv)</option>
+                    <option value="LastFmStatsJson">lastfmstats.com JSON</option>
+                    <option value="ListenBrainzJson">ListenBrainz export (.json / .jsonl / .zip)</option>
+                </select>
+            </label>
+            <button type="submit" class="button primary">Upload and import</button>
+        </form>
+        <details class="help">
+            <summary>Where do I get these files?</summary>
+            <ul>
+                <li><strong>Maloja:</strong> import directly from your server (right), or run <code>maloja export</code> or use the export in Maloja's admin panel.</li>
+                <li><strong>Last.fm:</strong> import directly from your account (right), or download a CSV from <code>benjaminbenben.com/lastfm-to-csv</code> or a JSON from <code>lastfmstats.com</code>.</li>
+                <li><strong>ListenBrainz:</strong> Settings → Export data on listenbrainz.org.</li>
+            </ul>
+        </details>
+    </section>
+
+    <div class="stack">
+        <section class="card">
+            <h2>Import from Last.fm</h2>
+            @if (Model.LastFmEnabled)
+            {
+                <p class="muted">Fetches your complete scrobble history from Last.fm. Your Last.fm profile's recent listening must be public. Large histories take a few minutes.</p>
+                <form method="post" asp-page-handler="LastFm" class="inline-form">
+                    <input name="lastFmUser" placeholder="Last.fm username" required maxlength="64" aria-label="Last.fm username">
+                    <button type="submit" class="button primary">Import</button>
+                </form>
+            }
+            else
+            {
+                <p class="muted">Direct import is not enabled on this server. The administrator can enable it by adding a Last.fm API key (free at last.fm/api/account/create) under Admin → Metadata, or with <code>MuseFM__LastFmApiKey</code>.</p>
+                <p class="muted">You can still upload a Last.fm CSV export on the left.</p>
+            }
+        </section>
+
+        <section class="card">
+            <h2>Import from Maloja</h2>
+            <p class="muted">Fetches your complete history straight from your Maloja server, with every credited artist and the albums. Maloja needs no API key for this.</p>
+            <form method="post" asp-page-handler="Maloja" class="inline-form">
+                <input name="malojaUrl" inputmode="url" placeholder="http://192.168.1.10:42010" required maxlength="@MalojaClient.MaxUrlLength"
+                       aria-label="Maloja server address" autocomplete="url" spellcheck="false">
+                <button type="submit" class="button primary">Import</button>
+            </form>
+            <p class="hint">The address must be reachable from the MuseFM server. When both run in Docker, use Maloja's container name, e.g. <code>http://maloja:42010</code>. Unless the server is set up otherwise, only administrators can import from a private or local address like these.</p>
+        </section>
+    </div>
+</div>
+
+<section class="card">
+    <h2>Import history</h2>
+    @if (Model.Jobs.Count == 0)
+    {
+        <p class="empty-note">No imports yet.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="list">
+                <thead>
+                <tr><th>Source</th><th>Status</th><th class="num">Imported</th><th class="num">Skipped</th><th class="num">Failed</th><th>Started</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var job in Model.Jobs)
+                {
+                    <tr>
+                        <td>
+                            <span class="title">@job.Source</span>
+                            <div class="sub">@ImportFormats.Describe(job.Kind)</div>
+                        </td>
+                        <td>
+                            <span class="status @job.Status">@job.Status</span>
+                            @if (job.Status == ImportStatus.Running && job.Total is > 0)
+                            {
+                                <div class="progress"><span style="width:@Ui.Percent(job.Processed, job.Total.Value)"></span></div>
+                            }
+                            @if (!string.IsNullOrEmpty(job.Message))
+                            {
+                                <div class="sub">@job.Message</div>
+                            }
+                            @if (!string.IsNullOrEmpty(job.ErrorSample))
+                            {
+                                <div class="sub">Example problem: @job.ErrorSample</div>
+                            }
+                        </td>
+                        <td class="num">@Ui.Number(job.Imported)</td>
+                        <td class="num">@Ui.Number(job.Duplicates)</td>
+                        <td class="num">@Ui.Number(job.Failed)</td>
+                        <td class="muted">@Ui.DateAndTime(job.StartedAt ?? job.CreatedAt, Model.Zone)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

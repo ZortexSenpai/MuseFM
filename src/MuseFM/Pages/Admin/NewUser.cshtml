@@ -1,0 +1,51 @@
+@page "/admin/users/new"
+@model MuseFM.Pages.Admin.NewUserModel
+@{
+    ViewData["Title"] = "New user · Users";
+    ViewData["Tab"] = "users";
+}
+<partial name="_AdminNav" />
+
+<p><a href="/admin">← Users</a></p>
+
+<section class="card">
+    <h2>New user</h2>
+    @if (Model.Errors.Count > 0)
+    {
+        <div class="alert error"><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+    }
+    <form method="post">
+        <div class="form-grid">
+            <label class="field">
+                <span>Username</span>
+                <input asp-for="Input.UserName" autocomplete="off" spellcheck="false" autofocus>
+                <span asp-validation-for="Input.UserName" class="field-error"></span>
+            </label>
+            <label class="field">
+                <span>Time zone</span>
+                <select asp-for="Input.TimeZoneId" asp-items="TimeZones.SelectItems"></select>
+                <span asp-validation-for="Input.TimeZoneId" class="field-error"></span>
+            </label>
+            <label class="field">
+                <span>Password</span>
+                <input asp-for="Input.Password" autocomplete="new-password">
+                <span asp-validation-for="Input.Password" class="field-error"></span>
+            </label>
+            <label class="field">
+                <span>Repeat the password</span>
+                <input asp-for="Input.ConfirmPassword" autocomplete="new-password">
+                <span asp-validation-for="Input.ConfirmPassword" class="field-error"></span>
+            </label>
+        </div>
+        <label class="check">
+            <input asp-for="Input.IsPublic">
+            <span>Public profile <span class="muted">— stats can be viewed by anyone and the user appears in search</span></span>
+        </label>
+        <label class="check">
+            <input asp-for="Input.IsAdmin">
+            <span>Administrator <span class="muted">— can manage users, the catalog and metadata connectors</span></span>
+        </label>
+        <button type="submit" class="button primary">Create user</button>
+    </form>
+    <p class="hint">Works while sign-up is closed. The user can change the password under Settings and create API keys for their scrobblers there.</p>
+</section>

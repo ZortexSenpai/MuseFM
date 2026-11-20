@@ -1,0 +1,137 @@
+@page "/settings/preferences"
+@model MuseFM.Pages.Settings.PreferencesModel
+@inject MetadataService Metadata
+@{
+    ViewData["Title"] = "Preferences";
+    ViewData["Tab"] = "preferences";
+    var input = Model.Input;
+
+    // A tiny page drawn with the real theme tokens: a top bar, a card with some text and a chart.
+    void Preview(string theme)
+    {
+        <span class="mini" data-theme="@theme" data-accent="@input.Accent">
+            <span class="mini-bar"><i class="mini-logo"></i><i class="mini-nav"></i></span>
+            <span class="mini-body">
+                <span class="mini-card">
+                    <i class="mini-text"></i><i class="mini-text short"></i>
+                    <span class="mini-cols"><i style="height:45%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:92%"></i><i style="height:64%"></i></span>
+                </span>
+            </span>
+        </span>
+    }
+}
+<partial name="_SettingsNav" />
+
+@if (Model.StatusMessage is not null)
+{
+    <div class="alert success">@Model.StatusMessage</div>
+}
+
+<p class="muted">These settings change how MuseFM looks to you, on your own profile and on everyone else's.</p>
+
+<form method="post">
+    <section class="card">
+        <h2>Appearance</h2>
+        <fieldset class="choice-group">
+            <legend>Theme</legend>
+            <div class="theme-options">
+                @foreach (var (mode, label, hint) in ViewerPreferences.Themes)
+                {
+                    var value = ViewerPreferences.ThemeId(mode);
+                    <label class="theme-option">
+                        <input type="radio" name="Input.Theme" value="@value" data-scheme="@ViewerPreferences.ColorSchemeOf(mode)" checked="@(input.Theme == value)">
+                        <span class="theme-preview" aria-hidden="true">
+                            @if (mode == ThemeMode.System)
+                            {
+                                Preview("light");
+                                Preview("dark");
+                            }
+                            else
+                            {
+                                Preview(value);
+                            }
+                        </span>
+                        <span class="option-label">@label <span class="muted">@hint</span></span>
+                    </label>
+                }
+            </div>
+        </fieldset>
+        <fieldset class="choice-group">
+            <legend>Accent color</legend>
+            <div class="accent-options">
+                @foreach (var (id, name) in ViewerPreferences.Accents)
+                {
+                    <label class="accent-option">
+                        <input type="radio" name="Input.Accent" value="@id" checked="@(input.Accent == id)">
+                        <span class="accent-dot" data-accent="@id" aria-hidden="true"></span>
+                        <span>@name</span>
+                    </label>
+                }
+            </div>
+        </fieldset>
+        <p class="hint">The accent colors links, buttons and charts. Every accent is checked for readable contrast in every theme. Changes preview right away; save to keep them.</p>
+    </section>
+
+    <section class="card">
+        <h2>Dates and charts</h2>
+        <fieldset class="choice-group">
+            <legend>Time format</legend>
+            <div class="segmented">
+                <label><input type="radio" name="Input.Clock12" value="false" checked="@(!input.Clock12)"><span>24-hour <span class="muted">21:30</span></span></label>
+                <label><input type="radio" name="Input.Clock12" value="true" checked="@input.Clock12"><span>12-hour <span class="muted">9:30 PM</span></span></label>
+            </div>
+        </fieldset>
+        <fieldset class="choice-group">
+            <legend>First day of the week</legend>
+            <div class="segmented">
+                <label><input type="radio" name="Input.WeekStartsSunday" value="false" checked="@(!input.WeekStartsSunday)"><span>Monday</span></label>
+                <label><input type="radio" name="Input.WeekStartsSunday" value="true" checked="@input.WeekStartsSunday"><span>Sunday</span></label>
+            </div>
+            <p class="hint">Used for weeks in Compare, the calendar and the day-of-week charts.</p>
+        </fieldset>
+        <label class="field narrow">
+            <span>Default period</span>
+            <select name="Input.DefaultRange">
+                @foreach (var (value, label) in PreferencesModel.Ranges)
+                {
+                    <option value="@value" selected="@(input.DefaultRange == value)">@label</option>
+                }
+            </select>
+            <span class="hint">What Overview and the top artists, albums and tracks open with. Insights opens on 12 months, artist pages on all time.</span>
+        </label>
+    </section>
+
+    <section class="card">
+        <h2>Artwork</h2>
+        <label class="check">
+            <input asp-for="Input.ShowArtwork">
+            <span>Show album covers and artist photos</span>
+        </label>
+        @if (!Metadata.Enabled)
+        {
+            <p class="hint">No metadata connector is enabled on this server yet, so there is no artwork to show.</p>
+        }
+    </section>
+
+    <button type="submit" class="button primary">Save preferences</button>
+</form>
+
+<script>
+    // Preview theme and accent on this page as soon as they are picked; saving makes them stick everywhere.
+    (() => {
+        const root = document.documentElement;
+        for (const input of document.querySelectorAll('input[name="Input.Theme"]')) {
+            input.addEventListener("change", () => {
+                if (input.value === "system") root.removeAttribute("data-theme");
+                else root.setAttribute("data-theme", input.value);
+                document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", input.dataset.scheme);
+            });
+        }
+        for (const input of document.querySelectorAll('input[name="Input.Accent"]')) {
+            input.addEventListener("change", () => {
+                root.setAttribute("data-accent", input.value);
+                for (const mini of document.querySelectorAll(".mini")) mini.setAttribute("data-accent", input.value);
+            });
+        }
+    })();
+</script>

@@ -1,0 +1,61 @@
+@model HeatmapModel
+@{
+    var rows = Model.Values.GetLength(0);
+    var cols = Model.Values.GetLength(1);
+    var max = 0;
+    foreach (var value in Model.Values) max = Math.Max(max, value);
+}
+@if (max == 0)
+{
+    <p class="empty-note">Nothing in this period.</p>
+}
+else
+{
+    <figure class="chart">
+        <div class="heatmap" role="img" aria-label="@Model.Caption" style="--cols:@cols">
+            <span></span>
+            @foreach (var label in Model.Columns)
+            {
+                <span class="hm-col">@label</span>
+            }
+            @for (var r = 0; r < rows; r++)
+            {
+                <span class="hm-row">@Model.Rows[r]</span>
+                @for (var c = 0; c < cols; c++)
+                {
+                    var value = Model.Values[r, c];
+                    <span class="cell l@(Ui.HeatLevel(value, max))" data-tip="@Ui.Tip($"{Model.Rows[r]}, {Model.ColumnTitles[c]}", Ui.Number(value), "scrobbles")"></span>
+                }
+            }
+        </div>
+        <partial name="_HeatScale" />
+        <details class="table-view">
+            <summary>Show as table</summary>
+            <div class="table-wrap">
+                <table class="list compact">
+                    <thead>
+                    <tr>
+                        <th></th>
+                        @foreach (var title in Model.ColumnTitles)
+                        {
+                            <th class="num">@title</th>
+                        }
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @for (var r = 0; r < rows; r++)
+                    {
+                        <tr>
+                            <td>@Model.Rows[r]</td>
+                            @for (var c = 0; c < cols; c++)
+                            {
+                                <td class="num">@Ui.Number(Model.Values[r, c])</td>
+                            }
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </figure>
+}

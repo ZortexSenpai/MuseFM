@@ -1,0 +1,58 @@
+@model UserHeaderModel
+@{
+    var url = Ui.UserUrl(Model.UserName);
+    string Tab(string name) => name == Model.Active ? "tab active" : "tab";
+}
+@if (Model.BannerFile is { } banner)
+{
+    <div class="profile-banner"><img src="@ProfileImages.Url(banner)" alt="" decoding="async"></div>
+}
+else
+{
+    @* No banner: a band in the user's colour, with a record sunk into it. *@
+    <div class="profile-band tone-@Ui.Tone(Model.UserName)" aria-hidden="true"></div>
+}
+<section class="profile-head @(Model.BannerFile is null ? "with-band" : "with-banner")">
+    @Ui.Avatar(Model.UserName, Model.AvatarFile, large: true)
+    <div class="profile-text">
+        <h1>
+            @Model.UserName
+            @if (!Model.IsPublic)
+            {
+                <span class="badge">Private</span>
+            }
+        </h1>
+        <p class="muted">
+            Member since @Ui.Date(Model.MemberSince, Model.Zone)
+            · <a class="quiet-link" href="@(url)/friends">@Ui.Number(Model.Followers) follower@(Model.Followers == 1 ? "" : "s")</a>
+            · <a class="quiet-link" href="@(url)/friends">@Ui.Number(Model.Following) following</a>
+        </p>
+    </div>
+    @if (Model.Follows is { } follows)
+    {
+        <div class="profile-actions">
+            @if (Model.IsPublic || follows)
+            {
+                <form method="post" asp-page="/Users/Friends" asp-page-handler="Follow" asp-route-username="@Model.UserName">
+                    <input type="hidden" name="follow" value="@(follows ? "false" : "true")">
+                    <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)">
+                    <button type="submit" class="button small@(follows ? " following" : " primary")" aria-pressed="@(follows ? "true" : "false")">
+                        @(follows ? "Following" : "Follow")
+                    </button>
+                </form>
+            }
+            <a class="button small" href="@(url)/taste">Compare taste</a>
+        </div>
+    }
+</section>
+<nav class="tabs">
+    <a class="@Tab("overview")" href="@url">Overview</a>
+    <a class="@Tab("scrobbles")" href="@(url)/scrobbles">Scrobbles</a>
+    <a class="@Tab("artists")" href="@(url)/artists">Artists</a>
+    <a class="@Tab("albums")" href="@(url)/albums">Albums</a>
+    <a class="@Tab("tracks")" href="@(url)/tracks">Tracks</a>
+    <a class="@Tab("loved")" href="@(url)/loved">Loved</a>
+    <a class="@Tab("insights")" href="@(url)/insights">Insights</a>
+    <a class="@Tab("compare")" href="@(url)/compare">Compare</a>
+    <a class="@Tab("friends")" href="@(url)/friends">Friends</a>
+</nav>

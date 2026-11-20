@@ -1,0 +1,27 @@
+@page "/settings/export"
+@model MuseFM.Pages.Settings.ExportModel
+@{
+    ViewData["Title"] = "Export";
+    ViewData["Tab"] = "export";
+}
+<partial name="_SettingsNav" />
+
+<p class="muted">Download all @Ui.Number(Model.ScrobbleCount) of your scrobbles. Exports are generated on the fly and always contain your full history.</p>
+
+<div class="grid-3">
+    <section class="card">
+        <h2>Maloja JSON</h2>
+        <p class="muted">The complete export: multiple artists, album artists, track length and listening duration. Can be re-imported into MuseFM or into Maloja (<code>maloja import maloja_export_….json</code>).</p>
+        <a class="button primary" href="/settings/export/maloja">Download .json</a>
+    </section>
+    <section class="card">
+        <h2>Last.fm CSV</h2>
+        <p class="muted">The <code>artist,album,track,date</code> format used by lastfm-to-csv, readable by many tools and by Maloja's Last.fm importer. Dates have minute precision and multiple artists are written as “A feat. B”.</p>
+        <a class="button primary" href="/settings/export/lastfm">Download .csv</a>
+    </section>
+    <section class="card">
+        <h2>ListenBrainz</h2>
+        <p class="muted">A .zip laid out like a ListenBrainz export: every listen as a JSON line with its MusicBrainz ids where known, plus your loved tracks. Can be re-imported into MuseFM, loved tracks included.</p>
+        <a class="button primary" href="/settings/export/listenbrainz">Download .zip</a>
+    </section>
+</div>

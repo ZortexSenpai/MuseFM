@@ -1,0 +1,14 @@
+@model ChartModel
+@* Two or more series always get a legend; a single series is named by the card title. *@
+@if (Model.Series.Count > 1)
+{
+    <div class="legend">
+        @foreach (var series in Model.Series)
+        {
+            <span class="legend-item"><i class="key @series.Key"></i>@series.Name@if (series.Note is not null)
+                {
+                    <span class="muted">&nbsp;@series.Note</span>
+                }</span>
+        }
+    </div>
+}

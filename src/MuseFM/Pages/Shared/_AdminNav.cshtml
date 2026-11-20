@@ -1,0 +1,10 @@
+@{
+    var active = ViewData["Tab"] as string;
+    string Tab(string name) => name == active ? "tab active" : "tab";
+}
+<h1>Administration</h1>
+<nav class="tabs">
+    <a class="@Tab("users")" href="/admin">Users</a>
+    <a class="@Tab("metadata")" href="/admin/metadata">Metadata</a>
+    <a class="@Tab("catalog")" href="/admin/catalog">Catalog</a>
+</nav>

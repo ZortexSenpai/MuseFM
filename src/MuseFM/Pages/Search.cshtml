@@ -1,0 +1,44 @@
+@page "/search"
+@model SearchModel
+@{
+    ViewData["Title"] = "Search users";
+}
+<h1>Users</h1>
+<form method="get" class="inline-form">
+    <input type="search" name="q" value="@Model.Query" placeholder="Search by username" aria-label="Search by username" autofocus>
+    <button type="submit" class="button primary">Search</button>
+</form>
+@if (Model.Results.Count == 0)
+{
+    <div class="card empty-state">
+        <p class="muted">@(Model.Query.Length > 0 ? $"No users matching “{Model.Query}”." : "No public profiles yet.")</p>
+    </div>
+}
+else
+{
+    <ul class="people-grid">
+        @foreach (var user in Model.Results)
+        {
+            <li>
+                <a class="person" href="@Ui.UserUrl(user.UserName)">
+                    @Ui.Avatar(user.UserName, user.AvatarFile)
+                    <span class="person-name">
+                        @user.UserName
+                        @if (!user.IsPublic)
+                        {
+                            <span class="badge">Private</span>
+                        }
+                    </span>
+                    <span class="person-count">@Ui.Number(user.Scrobbles) scrobble@(user.Scrobbles == 1 ? "" : "s")</span>
+                    <span class="person-meta">
+                        @(user.LastScrobble is { } last ? $"last {Ui.Relative(last, TimeZoneInfo.Utc)} · " : "")since @Ui.Date(user.CreatedAt, TimeZoneInfo.Utc)
+                    </span>
+                </a>
+            </li>
+        }
+    </ul>
+    @if (Model.Results.Count == SearchModel.Limit)
+    {
+        <p class="hint">Showing the first @SearchModel.Limit matches. Refine your search to narrow it down.</p>
+    }
+}

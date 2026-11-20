@@ -1,0 +1,131 @@
+@page "/admin/catalog/{kind}/{id:int}"
+@model MuseFM.Pages.Admin.CatalogEntryModel
+@using MuseFM.Pages.Admin
+@{
+    var entry = Model.Entry;
+    var singular = CatalogUrls.Singular(entry.Kind);
+    ViewData["Title"] = $"{entry.Name} · Catalog";
+    ViewData["Tab"] = "catalog";
+    var mbidPath = entry.Kind switch { ChartKind.Artists => "artist", ChartKind.Albums => "release", _ => "recording" };
+}
+<partial name="_AdminNav" />
+
+<p><a href="@CatalogUrls.Search(entry.Kind, entry.Name)">← @entry.Kind</a></p>
+
+@if (Model.StatusMessage is not null)
+{
+    <div class="alert @(Model.StatusIsError ? "error" : "success")">@Model.StatusMessage</div>
+}
+
+<section class="card">
+    <p class="eyebrow">@singular #@entry.Id</p>
+    <h2 class="artist-name">@entry.Name</h2>
+    @if (entry.Artists.Count > 0)
+    {
+        <p class="byline">
+            @for (var i = 0; i < entry.Artists.Count; i++)
+            {
+                @(i > 0 ? ", " : "")<a href="@CatalogUrls.Entry(ChartKind.Artists, entry.Artists[i].Id)">@entry.Artists[i].Name</a>
+            }
+        </p>
+    }
+    <dl class="kv">
+        <dt>Scrobbles</dt>
+        <dd>@Ui.Number(entry.Scrobbles) by @Ui.Number(entry.Listeners) user@(entry.Listeners == 1 ? "" : "s")</dd>
+        <dt>Matching key</dt>
+        <dd><code>@entry.Key</code></dd>
+        @if (entry.MusicBrainzId is { } mbid)
+        {
+            <dt>MusicBrainz</dt>
+            <dd><a href="https://musicbrainz.org/@mbidPath/@mbid" rel="noopener noreferrer nofollow" target="_blank">@mbid</a></dd>
+        }
+    </dl>
+    @if (Model.ProfileUrl is { } profile)
+    {
+        <a href="@profile">Your stats for this @singular</a>
+    }
+</section>
+
+<div class="grid-2">
+    <section class="card">
+        <h3>Rename</h3>
+        <form method="post" asp-page-handler="Rename" asp-route-kind="@singular" asp-route-id="@entry.Id">
+            <label class="field">
+                <span>Name</span>
+                <input name="name" value="@entry.Name" required maxlength="512">
+            </label>
+            <button type="submit" class="button primary">Rename</button>
+        </form>
+        <p class="hint">For everyone. If the new name matches differently, the old one becomes an alias.</p>
+    </section>
+    <section class="card">
+        <h3>MusicBrainz id</h3>
+        <form method="post" asp-page-handler="Mbid" asp-route-kind="@singular" asp-route-id="@entry.Id">
+            <label class="field">
+                <span>@(entry.Kind switch { ChartKind.Artists => "Artist", ChartKind.Albums => "Release", _ => "Recording" }) id</span>
+                <input name="mbid" value="@entry.MusicBrainzId" placeholder="e.g. 8f3471b5-7e6a-48da-86a9-c1c07a0f47ae" maxlength="64">
+            </label>
+            <button type="submit" class="button">Save</button>
+        </form>
+        <p class="hint">@(entry.Kind == ChartKind.Tracks ? "Used for loves from ListenBrainz clients and in exports." : "Used to look up photos, covers and biographies; leave empty to clear it.")</p>
+    </section>
+</div>
+
+<section class="card" id="merge">
+    <h3>Merge into another @singular</h3>
+    <p class="muted">
+        Moves all scrobbles@(entry.Kind == ChartKind.Tracks ? " and loves" : "") of “@entry.Name” to the @singular you pick and removes this one.
+        @if (entry.Kind == ChartKind.Artists)
+        {
+            <text>Their tracks and albums join the other artist's, and duplicates among them are merged too.</text>
+        }
+    </p>
+    <form method="get" class="inline-form">
+        <input type="search" name="q" value="@Model.Query" placeholder="Name or id" aria-label="Find a @singular to merge into">
+        <button type="submit" class="button">Find</button>
+    </form>
+    @if (Model.Candidates.Count == 0)
+    {
+        <p class="empty-note">No other @singular matches “@Model.Query”.</p>
+    }
+    else
+    {
+        <partial name="_CatalogTable" model="@(new CatalogTableModel(Model.Candidates, entry.Id, entry.Name))" />
+    }
+</section>
+
+<section class="card">
+    <h3>Aliases</h3>
+    @if (Model.Aliases.Count == 0)
+    {
+        <p class="empty-note">None. Old names appear here after a rename or merge.</p>
+    }
+    else
+    {
+        <p class="muted">Scrobbles with these names land on “@entry.Name”.</p>
+        <table class="list compact">
+            <tbody>
+            @foreach (var alias in Model.Aliases)
+            {
+                <tr>
+                    <td>
+                        <span class="title">@alias.Name</span>
+                        @if (alias.Credit.Count > 0)
+                        {
+                            <span class="muted"> · @string.Join(", ", alias.Credit)</span>
+                        }
+                    </td>
+                    <td class="time">@Ui.Date(alias.CreatedAt, TimeZoneInfo.Utc)</td>
+                    <td class="actions">
+                        <form method="post" asp-page-handler="DeleteAlias" asp-route-kind="@singular" asp-route-id="@entry.Id"
+                              onsubmit="return confirm('Remove this alias? Scrobbles with this name will be matched as usual again.')">
+                            <input type="hidden" name="aliasId" value="@alias.Id">
+                            <button type="submit" class="icon-button" title="Remove alias" aria-label="Remove alias">✕</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</section>

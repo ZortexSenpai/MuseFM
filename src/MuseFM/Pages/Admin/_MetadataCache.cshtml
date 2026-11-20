@@ -1,0 +1,126 @@
+@model MuseFM.Pages.Admin.MetadataModel.CacheView
+@{
+    var s = Model.Stats;
+    var fetch = Model.Fetch;
+    var running = fetch?.IsRunning == true;
+    var now = DateTime.UtcNow;
+    string Ago(DateTime utc) => Ui.Relative(new DateTimeOffset(utc, TimeSpan.Zero).ToUnixTimeSeconds(), TimeZoneInfo.Utc);
+}
+@* A class, not a data- attribute: Razor renders data- attributes even when their value is null. *@
+<section class="card@(running ? " is-running" : "")" id="metadata-cache">
+    <h2>Cache</h2>
+    <div class="table-wrap">
+        <table class="list cache-stats">
+            <thead>
+            <tr>
+                <th></th><th class="num">Total</th><th class="num">Looked up</th><th class="num">Photo / cover</th><th class="num">Biography</th>
+                <th class="num">Genres</th><th class="num">Year / length</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td class="title">Artists</td>
+                <td class="num">@Ui.Number(s.Artists)</td>
+                <td class="num">@Ui.Number(s.ArtistsLookedUp) <span class="share">@Ui.Share(s.ArtistsLookedUp, s.Artists)</span></td>
+                <td class="num">@Ui.Number(s.ArtistsWithImage) <span class="share">@Ui.Share(s.ArtistsWithImage, s.Artists)</span></td>
+                <td class="num">@Ui.Number(s.ArtistsWithBio) <span class="share">@Ui.Share(s.ArtistsWithBio, s.Artists)</span></td>
+                <td class="num">@Ui.Number(s.ArtistsWithGenres) <span class="share">@Ui.Share(s.ArtistsWithGenres, s.Artists)</span></td>
+                <td class="num muted">—</td>
+            </tr>
+            <tr>
+                <td class="title">Albums</td>
+                <td class="num">@Ui.Number(s.Albums)</td>
+                <td class="num">@Ui.Number(s.AlbumsLookedUp) <span class="share">@Ui.Share(s.AlbumsLookedUp, s.Albums)</span></td>
+                <td class="num">@Ui.Number(s.AlbumsWithImage) <span class="share">@Ui.Share(s.AlbumsWithImage, s.Albums)</span></td>
+                <td class="num muted">—</td>
+                <td class="num">@Ui.Number(s.AlbumsWithGenres) <span class="share">@Ui.Share(s.AlbumsWithGenres, s.Albums)</span></td>
+                <td class="num" title="Albums with a release year">@Ui.Number(s.AlbumsWithYear) <span class="share">@Ui.Share(s.AlbumsWithYear, s.Albums)</span></td>
+            </tr>
+            <tr>
+                <td class="title">Tracks</td>
+                <td class="num">@Ui.Number(s.Tracks)</td>
+                <td class="num muted">—</td>
+                <td class="num muted">—</td>
+                <td class="num muted">—</td>
+                <td class="num muted">—</td>
+                <td class="num" title="Tracks with a known length, from a client or from an album's track list">@Ui.Number(s.TracksWithLength) <span class="share">@Ui.Share(s.TracksWithLength, s.Tracks)</span></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <p class="hint">
+        @Ui.Bytes(s.ImageBytes) of images on disk. Artists and albums are also looked up automatically the first time they are shown;
+        found metadata is refreshed after 90 days, and items without a result are tried again after 14 days (an hour after a connector error).
+        Genres, release years and track lengths feed the statistics; tracks get their length from the track list of an album they were scrobbled with.
+    </p>
+
+    @if (fetch is { IsRunning: true })
+    {
+        var eta = "";
+        if (fetch is { Done: > 0, Total: { } count })
+            eta = $" · about {Ui.Elapsed((now - fetch.StartedAt) / fetch.Done * (count - fetch.Done))} left";
+        <div class="fetch-status">
+            <div class="fetch-line">
+                <strong>@(fetch.Mode == FetchMode.Missing ? "Fetching missing metadata…" : "Refetching all metadata…")</strong>
+                <span class="muted">
+                    @if (fetch.Total is { } total)
+                    {
+                        @($"{Ui.Number(fetch.Done)} of {Ui.Number(total)} artists and albums{eta}")
+                    }
+                    else
+                    {
+                        @("Listing artists and albums")
+                    }
+                </span>
+            </div>
+            <div class="progress wide"><span style="width:@Ui.Percent(fetch.Done, Math.Max(fetch.Total ?? 0, 1))"></span></div>
+            <form method="post" asp-page="/Admin/Metadata" asp-page-handler="Stop">
+                <button type="submit" class="button small">Stop</button>
+            </form>
+        </div>
+    }
+    else if (fetch is { FinishedAt: { } finished })
+    {
+        <p class="muted">
+            @if (fetch.Error is not null)
+            {
+                @($"The last fetch failed {Ago(finished)}: {fetch.Error}")
+            }
+            else if (fetch.Stopped)
+            {
+                @($"The last fetch was stopped {Ago(finished)}, after {Ui.Number(fetch.Done)} of {Ui.Number(fetch.Total ?? 0)} artists and albums.")
+            }
+            else if (fetch.Total is 0)
+            {
+                @($"The last fetch ({Ago(finished)}) had nothing to do: every artist and album already has full metadata.")
+            }
+            else
+            {
+                @($"The last fetch looked up {Ui.Number(fetch.Done)} artists and albums in {Ui.Elapsed(finished - fetch.StartedAt)}, finished {Ago(finished)}.")
+            }
+        </p>
+    }
+
+    <div class="button-row">
+        @if (!running)
+        {
+            <form method="post" asp-page="/Admin/Metadata" asp-page-handler="Fetch" asp-route-mode="@FetchMode.Missing">
+                <button type="submit" class="button primary" disabled="@(!Model.CanFetch)"
+                        title="Look up every artist and album that has no cover, photo or biography yet, or was last looked up before genres, release years and track lengths were">Fetch missing</button>
+            </form>
+            <form method="post" asp-page="/Admin/Metadata" asp-page-handler="Fetch" asp-route-mode="@FetchMode.All"
+                  onsubmit="return confirm('Look up every artist and album again? With a large library this takes a while.')">
+                <button type="submit" class="button" disabled="@(!Model.CanFetch)"
+                        title="Look up everything again, e.g. after changing the connector order">Refetch all</button>
+            </form>
+        }
+        <form method="post" asp-page="/Admin/Metadata" asp-page-handler="Clear"
+              onsubmit="return confirm('Delete all cached covers, photos and biographies? They are fetched again when next shown.')">
+            <button type="submit" class="button danger">Clear cache</button>
+        </form>
+    </div>
+    @if (!Model.CanFetch)
+    {
+        <p class="hint">Enable and set up a connector above to fetch metadata.</p>
+    }
+</section>

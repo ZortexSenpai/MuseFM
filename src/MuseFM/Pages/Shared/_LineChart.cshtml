@@ -1,0 +1,85 @@
+@model ChartModel
+@using System.Globalization
+@using System.Text
+@{
+    var inv = CultureInfo.InvariantCulture;
+    var max = Model.Groups.SelectMany(g => g.Values).Select(v => v ?? 0).DefaultIfEmpty(0).Max();
+    var (top, ticks) = Ui.NiceScale(max);
+    var n = Model.Groups.Count;
+    // Points sit in the middle of each x position, so they line up with column charts of the same buckets.
+    double X(int i) => (i + 0.5) * 1000.0 / n;
+    double Y(int v) => 1000 - v * 1000.0 / top;
+    List<(int Index, int Value)> Points(int series) =>
+        Model.Groups.Select((g, i) => (i, g.Values[series])).Where(p => p.Item2 is not null).Select(p => (p.i, p.Item2!.Value)).ToList();
+    string Line(List<(int Index, int Value)> points)
+    {
+        var path = new StringBuilder();
+        foreach (var (index, value) in points)
+            path.Append(path.Length == 0 ? "M" : " L").Append(X(index).ToString("0.#", inv)).Append(',').Append(Y(value).ToString("0.#", inv));
+        return path.ToString();
+    }
+    string Wash(List<(int Index, int Value)> points) => points.Count < 2 ? "" :
+        $"{Line(points)} L{X(points[^1].Index).ToString("0.#", inv)},1000 L{X(points[0].Index).ToString("0.#", inv)},1000 Z";
+    string Pct(double v) => (v / 10).ToString("0.##", inv) + "%";
+    // Draw the context series first so the current one stays on top.
+    var order = Enumerable.Range(0, Model.Series.Count).OrderBy(i => Model.Series[i].Key == "current" ? 1 : 0).ToList();
+}
+@if (max == 0)
+{
+    <p class="empty-note">Nothing in this period.</p>
+}
+else
+{
+    <figure class="chart line-chart">
+        <partial name="_ChartLegend" model="Model" />
+        <div class="chart-body" role="img" aria-label="@Model.Caption" style="--y-chars:@Ui.Compact(top).Length">
+            <div class="axis-y" aria-hidden="true">
+                @foreach (var tick in ticks)
+                {
+                    <span style="bottom:@Ui.Percent(tick, top)">@Ui.Compact(tick)</span>
+                }
+            </div>
+            <div class="plot">
+                <div class="gridlines" aria-hidden="true">
+                    @foreach (var tick in ticks)
+                    {
+                        <i style="bottom:@Ui.Percent(tick, top)"></i>
+                    }
+                </div>
+                <svg class="lines" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+                    @foreach (var i in order)
+                    {
+                        var points = Points(i);
+                        if (Model.Series[i].Key == "current" && Wash(points) is { Length: > 0 } wash)
+                        {
+                            <path class="wash @Model.Series[i].Key" d="@wash" />
+                        }
+                        <path class="line @Model.Series[i].Key" d="@Line(points)" />
+                    }
+                </svg>
+                @foreach (var i in order)
+                {
+                    var points = Points(i);
+                    if (points.Count > 0)
+                    {
+                        <span class="end-dot @Model.Series[i].Key" style="left:@Pct(X(points[^1].Index));bottom:@Pct(1000 - Y(points[^1].Value))" aria-hidden="true"></span>
+                    }
+                }
+                <div class="hits">
+                    @foreach (var group in Model.Groups)
+                    {
+                        var rows = Model.Series.Select((s, i) => (group.Values[i] is { } v ? Ui.Number(v) : "—", s.Name, (string?)s.Key));
+                        <div class="hit" data-tip="@Ui.Tip(group.Title, rows)"></div>
+                    }
+                </div>
+            </div>
+            <div class="axis-x" aria-hidden="true">
+                @foreach (var group in Model.Groups)
+                {
+                    <span>@group.Label</span>
+                }
+            </div>
+        </div>
+        <partial name="_ChartTable" model="Model" />
+    </figure>
+}

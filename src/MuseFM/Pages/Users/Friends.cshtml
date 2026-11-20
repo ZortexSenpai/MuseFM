@@ -1,0 +1,76 @@
+@page "/u/{username}/friends"
+@model MuseFM.Pages.Users.FriendsModel
+@{
+    var header = Model.Header("friends");
+    ViewData["Title"] = $"{Model.UserName} · Friends";
+    var url = Model.ProfileUrl;
+}
+<partial name="_UserHeader" model="header" />
+
+<div class="grid-2 wide-first">
+    <section class="card">
+        <div class="card-head"><h3>Following</h3><span class="muted">@Ui.Number(Model.FollowingList.Count)</span></div>
+        @if (Model.FollowingList.Count == 0)
+        {
+            <p class="empty-note">
+                @(Model.IsOwner ? "You don't follow anyone yet. Find people with the search and follow them from their profile." : $"{Model.UserName} doesn't follow anyone yet.")
+            </p>
+        }
+        else
+        {
+            <ul class="friends">
+                @foreach (var friend in Model.FollowingList)
+                {
+                    var friendUrl = Ui.UserUrl(friend.UserName);
+                    <li>
+                        <a class="user-link" href="@friendUrl">
+                            @Ui.Avatar(friend.UserName, friend.AvatarFile)
+                            <span class="title">@friend.UserName</span>
+                        </a>
+                        <div class="friend-track">
+                            @if (friend.NowPlaying is { } np)
+                            {
+                                <span class="eq small" aria-hidden="true"><i></i><i></i><i></i></span>
+                                <span><span class="title">@np.Title</span><span class="muted"> · @string.Join(", ", np.Artists)</span></span>
+                                <span class="sr-only">(now playing)</span>
+                            }
+                            else if (friend.Last is { } last)
+                            {
+                                <span>
+                                    <a class="title" href="@(friendUrl)/track/@last.TrackId">@last.Title</a>
+                                    <span class="muted"> · @Ui.ArtistLinks(friend.UserName, last.Artists) · @Ui.Relative(last.ListenedAt, Model.Zone)</span>
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="muted">No scrobbles yet</span>
+                            }
+                        </div>
+                        <a class="button small" href="@(url)/taste?with=@Uri.EscapeDataString(friend.UserName)">Compare</a>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+    <section class="card">
+        <div class="card-head"><h3>Followers</h3><span class="muted">@Ui.Number(Model.FollowerList.Count)</span></div>
+        @if (Model.FollowerList.Count == 0)
+        {
+            <p class="empty-note">No followers yet.</p>
+        }
+        else
+        {
+            <ul class="people">
+                @foreach (var follower in Model.FollowerList)
+                {
+                    <li>
+                        <a class="user-link" href="@Ui.UserUrl(follower.UserName)">
+                            @Ui.Avatar(follower.UserName, follower.AvatarFile)
+                            <span class="title">@follower.UserName</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+</div>

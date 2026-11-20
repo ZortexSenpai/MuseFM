@@ -1,0 +1,139 @@
+@page "/admin/users/{id}"
+@model MuseFM.Pages.Admin.EditUserModel
+@{
+    ViewData["Title"] = $"{Model.Name} · Users";
+    ViewData["Tab"] = "users";
+}
+<partial name="_AdminNav" />
+
+<p><a href="/admin">← Users</a></p>
+
+@if (Model.StatusMessage is not null)
+{
+    <div class="alert @(Model.StatusIsError ? "error" : "success")">@Model.StatusMessage</div>
+}
+
+<section class="profile-head">
+    @Ui.Avatar(Model.Name, Model.Target.AvatarFile, large: true)
+    <div class="profile-text">
+        <h1>
+            @Model.Name
+            @if (Model.TargetIsAdmin)
+            {
+                <span class="badge accent">Admin</span>
+            }
+            @if (!Model.Target.IsPublic)
+            {
+                <span class="badge">Private</span>
+            }
+            @if (Model.IsSelf)
+            {
+                <span class="badge">You</span>
+            }
+        </h1>
+        <p class="muted">
+            Joined @Ui.Date(Model.Target.CreatedAt, TimeZoneInfo.Utc)
+            · @Ui.Number(Model.Scrobbles) scrobbles@(Model.LastScrobble is { } last ? $", the latest {Ui.Relative(last, TimeZoneInfo.Utc)}" : "")
+            · @Ui.Number(Model.ApiKeys) API key@(Model.ApiKeys == 1 ? "" : "s")
+        </p>
+    </div>
+    <div class="profile-actions">
+        <a class="button small" href="@Ui.UserUrl(Model.Name)">View profile</a>
+    </div>
+</section>
+
+<section class="card">
+    <h2>Account</h2>
+    @if (Model.AccountErrors.Count > 0)
+    {
+        <div class="alert error"><ul>@foreach (var e in Model.AccountErrors) { <li>@e</li> }</ul></div>
+    }
+    <form method="post" asp-page-handler="Account" asp-route-id="@Model.Target.Id">
+        <div class="form-grid">
+            <label class="field">
+                <span>Username</span>
+                <input asp-for="Account.UserName" autocomplete="off" spellcheck="false">
+                <span asp-validation-for="Account.UserName" class="field-error"></span>
+            </label>
+            <label class="field">
+                <span>Time zone</span>
+                <select asp-for="Account.TimeZoneId" asp-items="TimeZones.SelectItems"></select>
+                <span asp-validation-for="Account.TimeZoneId" class="field-error"></span>
+            </label>
+        </div>
+        <label class="check">
+            <input asp-for="Account.IsPublic">
+            <span>Public profile <span class="muted">— stats can be viewed by anyone and the user appears in search</span></span>
+        </label>
+        <label class="check">
+            <input asp-for="Account.IsAdmin" disabled="@Model.IsSelf">
+            <span>Administrator <span class="muted">— @(Model.IsSelf ? "you can't remove your own admin rights" : "can manage users, the catalog and metadata connectors")</span></span>
+        </label>
+        <button type="submit" class="button primary">Save</button>
+    </form>
+    <p class="hint">Changing the username changes the profile address (<code>/u/@Model.Name</code>) and the name used to sign in and in API URLs.</p>
+</section>
+
+@if (Model.Target.AvatarFile is not null || Model.Target.BannerFile is not null)
+{
+    <section class="card">
+        <h2>Picture and banner</h2>
+        <partial name="_ProfileImagesPreview" model="Model.Target" />
+        <p class="muted">Remove an image that doesn't belong on this server. @Model.Name can upload a new one.</p>
+        <form method="post" asp-page-handler="RemoveImage" asp-route-id="@Model.Target.Id" class="button-row">
+            @if (Model.Target.AvatarFile is not null)
+            {
+                <button type="submit" class="button" name="kind" value="@ProfileImageKind.Avatar">Remove picture</button>
+            }
+            @if (Model.Target.BannerFile is not null)
+            {
+                <button type="submit" class="button" name="kind" value="@ProfileImageKind.Banner">Remove banner</button>
+            }
+        </form>
+    </section>
+}
+
+<section class="card">
+    <h2>Password</h2>
+    @if (Model.IsSelf)
+    {
+        <p class="muted">Change your own password under <a href="/settings">Settings</a>.</p>
+    }
+    else
+    {
+        @if (Model.PasswordErrors.Count > 0)
+        {
+            <div class="alert error"><ul>@foreach (var e in Model.PasswordErrors) { <li>@e</li> }</ul></div>
+        }
+        <p class="muted">For someone who forgot theirs: set a new one and tell them. Their scrobblers keep working.</p>
+        <form method="post" asp-page-handler="Password" asp-route-id="@Model.Target.Id">
+            <div class="form-grid">
+                <label class="field">
+                    <span>New password</span>
+                    <input type="password" name="Password.NewPassword" minlength="8" required autocomplete="new-password">
+                </label>
+                <label class="field">
+                    <span>Repeat it</span>
+                    <input type="password" name="Password.ConfirmPassword" minlength="8" required autocomplete="new-password">
+                </label>
+            </div>
+            <button type="submit" class="button">Set password</button>
+        </form>
+    }
+</section>
+
+@if (!Model.IsSelf)
+{
+    <section class="card danger-zone">
+        <h2>Delete user</h2>
+        <p class="muted">Deletes @Model.Name with all of their scrobbles, loves, API keys and imports. This can't be undone; if they want to keep their history, they can download it under Settings → Export first.</p>
+        @if (Model.DeleteError is not null)
+        {
+            <div class="alert error">@Model.DeleteError</div>
+        }
+        <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Target.Id" class="inline-form">
+            <input name="confirmName" placeholder="Type @Model.Name to confirm" aria-label="Type the username to confirm" autocomplete="off" spellcheck="false" required>
+            <button type="submit" class="button danger">Delete user</button>
+        </form>
+    </section>
+}

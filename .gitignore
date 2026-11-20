@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.DotSettings.user
+TestResults/
+
+# Local data directory (SQLite database, keys, uploads) when running with `dotnet run`
+src/MuseFM/data/

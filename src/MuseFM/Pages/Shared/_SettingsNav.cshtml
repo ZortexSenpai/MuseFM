@@ -1,0 +1,12 @@
+@{
+    var active = ViewData["Tab"] as string;
+    string Tab(string name) => name == active ? "tab active" : "tab";
+}
+<h1>Settings</h1>
+<nav class="tabs">
+    <a class="@Tab("profile")" href="/settings">Profile</a>
+    <a class="@Tab("preferences")" href="/settings/preferences">Preferences</a>
+    <a class="@Tab("keys")" href="/settings/api-keys">API keys</a>
+    <a class="@Tab("import")" href="/settings/import">Import</a>
+    <a class="@Tab("export")" href="/settings/export">Export</a>
+</nav>

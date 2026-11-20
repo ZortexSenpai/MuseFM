@@ -1,0 +1,384 @@
+@page "/u/{username}/insights"
+@model MuseFM.Pages.Users.InsightsModel
+@{
+    var header = Model.Header("insights");
+    ViewData["Title"] = $"{Model.UserName} · Insights";
+    var year = Model.Year;
+    var p = Model.Patterns;
+    var time = Model.Listening;
+    var sessions = Math.Max(1, time.Sessions);
+    var silence = Ui.Stretch(InsightsService.SilenceDays);
+    var repeats = Model.Repeats;
+    var mix = Model.Mix;
+    var url = Model.ProfileUrl;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var rangeTabs = new RangeTabsModel(Model.Period, $"{Model.ProfileUrl}/insights", Model.FirstYear, Model.Zone);
+    string DaysText(int days) => days == 1 ? "1 day" : $"{Ui.Number(days)} days";
+    string Span(Streak s) => s.Days == 1 ? Ui.ShortDay(s.Start) : $"{Ui.ShortDay(s.Start)} – {Ui.ShortDay(s.End)}";
+}
+<partial name="_UserHeader" model="header" />
+
+<section class="card">
+    <div class="card-head">
+        <h3>Past year</h3>
+        <span class="muted">@Ui.Number(year.Days.Sum(d => d.Count)) scrobbles on @DaysText(year.ActiveDays)</span>
+    </div>
+    <div class="year-layout">
+        <div class="year-calendar">
+            <partial name="_Calendar" model="year" />
+        </div>
+        <dl class="facts">
+            <div>
+                <dt>Current streak</dt>
+                <dd>@(year.CurrentStreak is { } current ? DaysText(current.Days) : "—")</dd>
+                @if (year.CurrentStreak is { } since)
+                {
+                    <dd class="muted">since @Ui.ShortDay(since.Start)</dd>
+                }
+            </div>
+            <div>
+                <dt>Longest streak</dt>
+                <dd>@(year.LongestStreak is { } longest ? DaysText(longest.Days) : "—")</dd>
+                @if (year.LongestStreak is { } longestSpan)
+                {
+                    <dd class="muted">@Span(longestSpan)</dd>
+                }
+            </div>
+            <div>
+                <dt>Busiest day</dt>
+                <dd>@(year.BusiestDay is { } busiest ? $"{Ui.Number(busiest.Count)} scrobbles" : "—")</dd>
+                @if (year.BusiestDay is { } busiestDay)
+                {
+                    <dd class="muted">@Ui.Day(busiestDay.Day)</dd>
+                }
+            </div>
+            <div>
+                <dt>Active days</dt>
+                <dd>@Ui.Number(year.ActiveDays) <span class="muted">of @Ui.Number(year.Days.Count)</span></dd>
+            </div>
+        </dl>
+    </div>
+</section>
+
+<div class="section-head">
+    <h2>@Model.Period.Label()</h2>
+    <partial name="_RangeTabs" model="rangeTabs" />
+</div>
+
+@if (p.Scrobbles == 0)
+{
+    <section class="card empty-state">
+        <p class="muted">No scrobbles in this period.</p>
+    </section>
+}
+else
+{
+    <div class="tiles">
+        <div class="tile">
+            <span class="tile-value">@((p.Scrobbles / (double)p.Days).ToString(p.Scrobbles < p.Days * 10 ? "0.#" : "N0", System.Globalization.CultureInfo.InvariantCulture))</span>
+            <span class="tile-label">Scrobbles per day</span>
+        </div>
+        <div class="tile">
+            <span class="tile-value">@Ui.Number(p.ActiveDays)</span>
+            <span class="tile-label">Active days</span>
+            <span class="tile-sub">of @DaysText(p.Days) · @Ui.Share(p.ActiveDays, p.Days)</span>
+        </div>
+        <div class="tile">
+            <span class="tile-value">@Ui.Number(p.NewArtists)</span>
+            <span class="tile-label">New artists</span>
+            <span class="tile-sub">first heard in this period@(p.NewArtistPlays * 100L >= p.ArtistPlays ? $" · {Ui.Share(p.NewArtistPlays, p.ArtistPlays)} of plays" : "")</span>
+        </div>
+        <div class="tile">
+            <span class="tile-value">@Ui.Number(p.BusiestDay?.Count ?? 0)</span>
+            <span class="tile-label">Busiest day</span>
+            @if (p.BusiestDay is { } busiestInRange)
+            {
+                <span class="tile-sub">@Ui.Day(busiestInRange.Day)</span>
+            }
+        </div>
+    </div>
+
+    <section class="card">
+        <div class="card-head"><h3>Listening time</h3><span class="muted">a session ends after @(InsightsService.SessionGapSeconds / 60) minutes of silence</span></div>
+        <dl class="facts">
+            <div>
+                <dt>Time listened</dt>
+                @if (time.IsKnown)
+                {
+                    <dd>@(time.IsEstimate ? "≈ " : "")@Ui.Hours(time.Seconds)</dd>
+                    <dd class="muted">@Ui.Hours(time.Seconds / p.Days) per day</dd>
+                    @if (time.IsEstimate)
+                    {
+                        <dd class="muted" title="The other scrobbles count as a track of average length.">length known for @Ui.Share(time.Timed, time.Scrobbles) of scrobbles</dd>
+                    }
+                }
+                else
+                {
+                    <dd>—</dd>
+                    <dd class="muted">no track lengths known</dd>
+                }
+            </div>
+            <div>
+                <dt>Sessions</dt>
+                <dd>@Ui.Number(time.Sessions)</dd>
+                <dd class="muted">@((time.Scrobbles / (double)sessions).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)) scrobbles each</dd>
+            </div>
+            <div>
+                <dt>Average session</dt>
+                <dd>@Ui.Hours(time.SessionSeconds / sessions)</dd>
+            </div>
+            <div>
+                <dt>Longest session</dt>
+                @if (time.LongestSession is { } longestSession)
+                {
+                    <dd>@Ui.Hours(longestSession.Seconds)</dd>
+                    <dd class="muted">@Ui.Date(longestSession.Start, Model.Zone) · @Ui.Number(longestSession.Scrobbles) scrobbles</dd>
+                }
+            </div>
+        </dl>
+    </section>
+
+    <section class="card">
+        <div class="card-head"><h3>On repeat</h3><span class="muted">@Ui.Number(repeats.Tracks) different tracks</span></div>
+        <dl class="facts">
+            <div>
+                <dt>Most plays in one day</dt>
+                @if (repeats.MostInADay is { } mostInADay)
+                {
+                    <dd>@Ui.Number(mostInADay.Plays)×</dd>
+                    <dd class="muted"><a href="@(url)/track/@mostInADay.Track.Id">@mostInADay.Track.Title</a> · @Ui.ArtistLinks(Model.UserName, mostInADay.Track.Artists)</dd>
+                    <dd class="muted">@Ui.Day(mostInADay.Day)</dd>
+                }
+                else
+                {
+                    <dd>—</dd>
+                    <dd class="muted">no track twice on one day</dd>
+                }
+            </div>
+            <div>
+                <dt>Longest run</dt>
+                @if (repeats.LongestRun is { } longestRun)
+                {
+                    <dd>@Ui.Number(longestRun.Plays)×</dd>
+                    <dd class="muted"><a href="@(url)/track/@longestRun.Track.Id">@longestRun.Track.Title</a> · @Ui.ArtistLinks(Model.UserName, longestRun.Track.Artists)</dd>
+                    <dd class="muted">back to back from @Ui.Date(longestRun.Start, Model.Zone)</dd>
+                }
+                else
+                {
+                    <dd>—</dd>
+                    <dd class="muted">no track twice in a row</dd>
+                }
+            </div>
+            <div>
+                <dt>Plays per track</dt>
+                <dd>@((repeats.Scrobbles / (double)Math.Max(1, repeats.Tracks)).ToString("0.#", inv))</dd>
+                <dd class="muted">on average</dd>
+            </div>
+            <div>
+                <dt>Played only once</dt>
+                <dd>@Ui.Share(repeats.PlayedOnce, Math.Max(1, repeats.Tracks))</dd>
+                <dd class="muted">@Ui.Number(repeats.PlayedOnce) of @Ui.Number(repeats.Tracks) tracks</dd>
+            </div>
+        </dl>
+    </section>
+
+    <div class="grid-2 wide-first">
+        <section class="card">
+            <div class="card-head"><h3>Time of day</h3><span class="muted">Most at @Model.PeakHour</span></div>
+            <partial name="_ColumnChart" model="Model.HourChart" />
+        </section>
+        <section class="card">
+            <div class="card-head"><h3>Day of the week</h3><span class="muted">Most on @(Model.PeakWeekday)s</span></div>
+            <partial name="_ColumnChart" model="Model.WeekdayChart" />
+        </section>
+    </div>
+
+    <section class="card">
+        <div class="card-head"><h3>Your week, hour by hour</h3><span class="muted">in @Model.Zone.Id</span></div>
+        <partial name="_Heatmap" model="Model.WeekHeatmap" />
+    </section>
+
+    <div class="grid-2">
+        <section class="card">
+            <div class="card-head"><h3>New artists</h3><span class="muted">first heard in this period</span></div>
+            <partial name="_ColumnChart" model="Model.DiscoveryChart" />
+        </section>
+        <section class="card">
+            <div class="card-head"><h3>Top artists' share</h3></div>
+            @{
+                var total = p.ArtistPlays;
+                var top = p.ArtistShare.Where(s => s.Key != "rest").ToList();
+                var topCount = top.Sum(s => s.Artists.Count);
+            }
+            <p class="share-summary">
+                Your top @(topCount == 1 ? "artist accounts" : $"{topCount} artists account") for
+                <strong>@Ui.Share(top.Sum(s => s.Plays), total)</strong> of everything you played.
+            </p>
+            <div class="sharebar" role="img" aria-label="@string.Join(", ", p.ArtistShare.Select(s => $"{s.Label}: {Ui.Share(s.Plays, total)}"))">
+                @foreach (var slice in p.ArtistShare)
+                {
+                    var percent = slice.Plays * 100.0 / total;
+                    var who = slice.Artists.Count > 0 ? string.Join(", ", slice.Artists) : slice.Label;
+                    <span class="seg @slice.Key" style="flex-grow:@slice.Plays"
+                          data-tip="@Ui.Tip($"{slice.Label} · {who}", [(Ui.Number(slice.Plays), "plays", slice.Key), (Ui.Share(slice.Plays, total), "of all plays", null)])">@(percent >= 10 ? Ui.Share(slice.Plays, total) : "")</span>
+                }
+            </div>
+            <ul class="share-legend">
+                @foreach (var slice in p.ArtistShare)
+                {
+                    <li>
+                        <i class="swatch @slice.Key"></i>
+                        <span class="share-name">
+                            <strong>@slice.Label</strong>
+                            @if (slice.Artists.Count > 0)
+                            {
+                                <span class="muted"> · @string.Join(", ", slice.Artists)</span>
+                            }
+                        </span>
+                        <span class="share-plays">@Ui.Number(slice.Plays) plays</span>
+                    </li>
+                }
+            </ul>
+            <p class="hint">A track by several artists counts for each of them.</p>
+        </section>
+    </div>
+
+    @if (mix.WithGenre + mix.WithYear > 0)
+    {
+        var mostGenrePlays = mix.Genres.Count > 0 ? mix.Genres.Max(g => g.Plays) : 1;
+        <div class="grid-2">
+            <section class="card">
+                <div class="card-head"><h3>Top genres</h3><span class="muted">known for @Ui.Share(mix.WithGenre, mix.Scrobbles) of scrobbles</span></div>
+                @if (mix.Genres.Count == 0)
+                {
+                    <p class="empty-note">No genres known for this period.</p>
+                }
+                else
+                {
+                    <ol class="toplist">
+                        @foreach (var (genre, i) in mix.Genres.Select((g, i) => (g, i)))
+                        {
+                            <li>
+                                <span class="rank">@(i + 1)</span>
+                                <div class="bar-cell">
+                                    <span class="bar" style="width:@Ui.Percent(genre.Plays, mostGenrePlays)"></span>
+                                    <span class="bar-text"><span class="title">@genre.Name</span><span class="muted"><span class="sep"> · </span>@Ui.Share(genre.Plays, mix.WithGenre)</span></span>
+                                </div>
+                                <span class="count">@Ui.Number(genre.Plays)</span>
+                            </li>
+                        }
+                    </ol>
+                    <p class="hint">@Ui.Number(mix.GenreCount) genres in all. A scrobble takes the genres of its album, or else of its artist, and counts for each of them.</p>
+                }
+            </section>
+            <section class="card">
+                <div class="card-head"><h3>Release decades</h3><span class="muted">known for @Ui.Share(mix.WithYear, mix.Scrobbles) of scrobbles</span></div>
+                @if (mix.MedianYear is { } medianYear)
+                {
+                    <p class="share-summary">Half of what you played came out in <strong>@medianYear</strong> or later.</p>
+                    <partial name="_ColumnChart" model="Model.DecadeChart" />
+                }
+                else
+                {
+                    <p class="empty-note">No release years known for this period.</p>
+                }
+            </section>
+        </div>
+    }
+
+    <div class="grid-2">
+        <section class="card">
+            <div class="card-head"><h3>Most days played</h3><span class="muted">days with a play, of @Ui.Number(p.ActiveDays)</span></div>
+            <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Artists, Model.Regulars.MostDays)" />
+        </section>
+        <section class="card">
+            <div class="card-head"><h3>Weeks at number one</h3><span class="muted">as the most played artist, of @(Model.Regulars.Weeks == 1 ? "1 week" : $"{Ui.Number(Model.Regulars.Weeks)} weeks")</span></div>
+            <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Artists, Model.Regulars.WeeksAtTop)" />
+        </section>
+    </div>
+
+    @if (Model.Rediscovered.Count > 0)
+    {
+        <section class="card">
+            <div class="card-head"><h3>Rediscovered artists</h3><span class="muted">played again after @silence or more without them</span></div>
+            <partial name="_TopList" model="Model.RediscoveredList" />
+        </section>
+    }
+}
+
+@if (Model.Milestones.Scrobbles > 0)
+{
+    var today = Model.Period.TodayDate;
+    var milestones = Model.Milestones;
+    <div class="section-head">
+        <h2>Looking back</h2>
+    </div>
+    <div class="grid-2 align-start">
+        <section class="card">
+            <div class="card-head"><h3>On this day</h3><span class="muted">@today.ToString("d MMMM", inv) in earlier years</span></div>
+            @if (Model.OnThisDay.Count == 0)
+            {
+                <p class="empty-note">No scrobbles on this date in earlier years.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="list compact">
+                        <tbody>
+                        @foreach (var day in Model.OnThisDay)
+                        {
+                            var slug = day.Day.ToString("yyyy-MM-dd", inv);
+                            <tr>
+                                <td><a class="title" href="@(url)?range=@(slug)..@(slug)" title="@Ui.Day(day.Day)">@day.Day.Year</a></td>
+                                <td>
+                                    <a class="title" href="@(url)/artist/@day.TopArtist.Id">@day.TopArtist.Title</a><span class="muted"> · @Ui.Number(day.TopArtist.Count)×</span>
+                                    <div class="sub"><a href="@(url)/track/@day.TopTrack.Id">@day.TopTrack.Title</a> · @Ui.Number(day.TopTrack.Count)×</div>
+                                </td>
+                                <td class="num">@Ui.Number(day.Scrobbles) @(day.Scrobbles == 1 ? "scrobble" : "scrobbles")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="hint">The artist and the track played most on that day.</p>
+            }
+        </section>
+        <section class="card">
+            <div class="card-head"><h3>Milestones</h3><span class="muted">@Ui.Number(milestones.Next - milestones.Scrobbles) to go until @Ui.Number(milestones.Next)</span></div>
+            <div class="table-wrap">
+                <table class="list compact">
+                    <tbody>
+                    @foreach (var milestone in milestones.Reached)
+                    {
+                        <tr>
+                            <td class="num"><strong>@(milestone.Number == 1 ? "First" : Ui.Number(milestone.Number))</strong></td>
+                            <td>
+                                <a class="title" href="@(url)/track/@milestone.Scrobble.TrackId">@milestone.Scrobble.Title</a>
+                                <span class="muted"> · @Ui.ArtistLinks(Model.UserName, milestone.Scrobble.Artists)</span>
+                            </td>
+                            <td class="time" title="@Ui.FullTime(milestone.Scrobble.ListenedAt, Model.Zone)">@Ui.Date(milestone.Scrobble.ListenedAt, Model.Zone)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+}
+
+@if (Model.ForgottenArtists.Count + Model.ForgottenTracks.Count > 0)
+{
+    <div class="section-head">
+        <h2>Forgotten favourites <span class="muted">· not played for @silence</span></h2>
+    </div>
+    <div class="grid-2">
+        <section class="card">
+            <div class="card-head"><h3>Artists</h3><span class="muted">all-time scrobbles</span></div>
+            <partial name="_TopList" model="Model.ForgottenList(Model.ForgottenArtists, ChartKind.Artists)" />
+        </section>
+        <section class="card">
+            <div class="card-head"><h3>Tracks</h3><span class="muted">all-time scrobbles</span></div>
+            <partial name="_TopList" model="Model.ForgottenList(Model.ForgottenTracks, ChartKind.Tracks)" />
+        </section>
+    </div>
+}

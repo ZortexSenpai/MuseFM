@@ -1,0 +1,14 @@
+@model LoveButtonModel
+@if (Model.CanLove)
+{
+    <form method="post" class="inline" asp-page="/Users/Track" asp-page-handler="Love" asp-route-username="@Model.UserName" asp-route-id="@Model.TrackId">
+        <input type="hidden" name="score" value="@(Model.Loved ? 0 : 1)">
+        <input type="hidden" name="returnUrl" value="@Model.ReturnUrl">
+        <button type="submit" class="love-button@(Model.Loved ? " loved" : "")" aria-pressed="@(Model.Loved ? "true" : "false")"
+                title="@(Model.Loved ? "Loved – click to unlove" : "Love this track")" aria-label="@(Model.Loved ? "Unlove" : "Love")">♥</button>
+    </form>
+}
+else if (Model.Loved)
+{
+    <span class="love-mark" title="Loved" aria-label="Loved">♥</span>
+}

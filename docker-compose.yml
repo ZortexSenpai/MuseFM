@@ -1,0 +1,23 @@
+services:
+  musefm:
+    build: .
+    image: musefm:latest
+    container_name: musefm
+    restart: unless-stopped
+    ports:
+      # Behind a reverse proxy on this host, use "127.0.0.1:8080:8080" so that nobody can get around the proxy.
+      - "8080:8080"
+    environment:
+      # Set to "false" once your accounts exist. The first account can always be created and becomes admin.
+      MuseFM__AllowRegistration: "true"
+      # Optional: enables "Import from Last.fm" and the Last.fm metadata connector (get a key at
+      # https://www.last.fm/api/account/create). It can also be set under Admin → Metadata instead.
+      MuseFM__LastFmApiKey: ""
+      # Optional: the reverse proxy whose X-Forwarded-* headers are believed (address or network), e.g. "172.18.0.0/16".
+      # MuseFM__TrustedProxies: ""
+      # Default time zone for new profiles is UTC; each user can change theirs in Settings.
+    volumes:
+      - musefm-data:/data
+
+volumes:
+  musefm-data:

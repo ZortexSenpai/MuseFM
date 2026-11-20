@@ -1,0 +1,137 @@
+@page "/u/{username}"
+@model MuseFM.Pages.Users.ProfileModel
+@inject MetadataService Metadata
+@{
+    var header = Model.Header("overview");
+    ViewData["Title"] = Model.UserName;
+    var url = Model.ProfileUrl;
+    var slug = Model.Period.Slug();
+    var rangeTabs = new RangeTabsModel(Model.Period, url, Model.FirstYear, Model.Zone);
+    var recent = new ScrobbleTableModel(Model.UserName, Model.Zone, Model.Recent, false, 1, Model.Loved, Model.IsOwner);
+    var coverWall = Metadata.Enabled && ViewerPreferences.Current.ShowArtwork && Model.TopAlbums.Count > 0;
+
+    void Delta(Func<Totals, int> value)
+    {
+        if (Model.PreviousTotals is not { } previous) return;
+        var change = Ui.Delta(value(Model.Totals), value(previous));
+        <span class="tile-delta @change.Css" title="@Ui.Number(value(previous)) in the @Model.PreviousLabel">@change.Text <span class="muted">vs @Model.PreviousLabel</span></span>
+    }
+}
+<partial name="_UserHeader" model="header" />
+
+@if (Model.Obsession is { } obsession)
+{
+    var track = obsession.Track;
+    var trackUrl = $"{url}/track/{track.Id}";
+    @* The colour after the owner's own, so the block never matches the band above it. *@
+    <section class="card obsession tone-@(Ui.Tone(Model.UserName) % 6 + 1)">
+        @if (Metadata.Enabled && ViewerPreferences.Current.ShowArtwork)
+        {
+            <div class="sleeve">
+                <a class="thumb" href="@trackUrl" tabindex="-1" aria-hidden="true"><img src="/media/track/@track.Id" alt="" decoding="async"></a>
+                <span class="disc" aria-hidden="true"></span>
+            </div>
+        }
+        <div class="obsession-text">
+            <p class="eyebrow">Current obsession</p>
+            <p class="obsession-title"><a href="@trackUrl">@track.Title</a></p>
+            <p class="byline">@Ui.ArtistLinks(Model.UserName, track.Artists)</p>
+            <p class="muted">
+                Since @Ui.Date(obsession.StartedAt, Model.Zone) · @Ui.Number(obsession.Scrobbles) scrobble@(obsession.Scrobbles == 1 ? "" : "s")
+                @if (Model.IsOwner)
+                {
+                    <span> · @(obsession.EndsAt is { } end ? $"shown until {Ui.DateAndTime(end, Model.Zone)}" : "shown until you change it")</span>
+                }
+            </p>
+        </div>
+        @if (Model.IsOwner)
+        {
+            <form method="post" class="obsession-actions" asp-page="/Users/Track" asp-page-handler="EndObsession" asp-route-username="@Model.UserName" asp-route-id="@track.Id">
+                <input type="hidden" name="returnUrl" value="@url">
+                <a class="button small" href="@trackUrl">Change</a>
+                <button type="submit" class="button small">Remove</button>
+            </form>
+        }
+    </section>
+}
+
+@if (Model.NowPlaying is { } np)
+{
+    <div class="card nowplaying">
+        <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div>
+            <div class="label">Now playing</div>
+            <span class="title">@np.Title</span>
+            <span class="muted"> · @string.Join(", ", np.Artists)</span>
+            @if (np.Album is not null)
+            {
+                <span class="muted"> · @np.Album</span>
+            }
+        </div>
+    </div>
+}
+
+<div class="section-head">
+    <h2>@Model.Period.Label()</h2>
+    <partial name="_RangeTabs" model="rangeTabs" />
+</div>
+
+<div class="tiles">
+    <div class="tile"><span class="tile-value">@Ui.Number(Model.Totals.Scrobbles)</span><span class="tile-label">Scrobbles</span>@{ Delta(t => t.Scrobbles); }</div>
+    <div class="tile"><span class="tile-value">@Ui.Number(Model.Totals.Artists)</span><span class="tile-label">Artists</span>@{ Delta(t => t.Artists); }</div>
+    <div class="tile"><span class="tile-value">@Ui.Number(Model.Totals.Albums)</span><span class="tile-label">Albums</span>@{ Delta(t => t.Albums); }</div>
+    <div class="tile"><span class="tile-value">@Ui.Number(Model.Totals.Tracks)</span><span class="tile-label">Tracks</span>@{ Delta(t => t.Tracks); }</div>
+</div>
+
+<section class="card">
+    <h3>Listening activity</h3>
+    <partial name="_Activity" model="Model.Activity" />
+</section>
+
+@if (coverWall)
+{
+    <section class="card">
+        <div class="card-head"><h3>Top albums</h3><a href="@(url)/albums?range=@slug">See all</a></div>
+        <ol class="cover-wall">
+            @* A mosaic: number one takes four squares, eight more fill the rows beside and below it. *@
+            @foreach (var album in Model.TopAlbums.Take(9))
+            {
+                <li>
+                    <a class="wall-art" href="@(url)/album/@album.Id" tabindex="-1" aria-hidden="true">
+                        <img src="/media/album/@album.Id" alt="" loading="lazy" decoding="async">
+                        <span class="cover-rank">@album.Rank</span>
+                    </a>
+                    <a class="cover-title" href="@(url)/album/@album.Id" title="@album.Title">@album.Title</a>
+                    <span class="cover-artist">@Ui.ArtistLinks(Model.UserName, album.Artists)</span>
+                    <span class="cover-count">@Ui.Number(album.Count) scrobbles</span>
+                </li>
+            }
+        </ol>
+    </section>
+}
+
+<div class="@(coverWall ? "grid-2" : "grid-3")">
+    <section class="card">
+        <div class="card-head"><h3>Top artists</h3><a href="@(url)/artists?range=@slug">See all</a></div>
+        <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Artists, Model.TopArtists)" />
+    </section>
+    @if (!coverWall)
+    {
+        <section class="card">
+            <div class="card-head"><h3>Top albums</h3><a href="@(url)/albums?range=@slug">See all</a></div>
+            <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Albums, Model.TopAlbums)" />
+        </section>
+    }
+    <section class="card">
+        <div class="card-head"><h3>Top tracks</h3><a href="@(url)/tracks?range=@slug">See all</a></div>
+        <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Tracks, Model.TopTracks)" />
+    </section>
+</div>
+
+<section class="card">
+    <div class="card-head">
+        <h3>Recent scrobbles</h3>
+        <span><span class="muted">@Ui.Number(Model.AllTimeScrobbles) total · </span><a href="@(url)/scrobbles">See all</a></span>
+    </div>
+    <partial name="_ScrobbleTable" model="recent" />
+</section>

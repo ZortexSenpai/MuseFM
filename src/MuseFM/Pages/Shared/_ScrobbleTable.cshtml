@@ -1,0 +1,60 @@
+@model ScrobbleTableModel
+@inject MetadataService Metadata
+@{
+    var covers = Metadata.Enabled && ViewerPreferences.Current.ShowArtwork;
+    var url = Ui.UserUrl(Model.UserName);
+    var hearts = Model.CanLove || Model.Loved is { Count: > 0 };
+    var here = Context.Request.Path + Context.Request.QueryString;
+}
+@if (Model.Rows.Count == 0)
+{
+    <p class="empty-note">No scrobbles yet. Connect a scrobbler or import your history in Settings.</p>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="list">
+            <tbody>
+            @foreach (var s in Model.Rows)
+            {
+                <tr>
+                    @if (covers)
+                    {
+                        <td class="cover">
+                            <span class="thumb">
+                                @* Without an album, use the album this track is usually scrobbled with. *@
+                                <img src="@(s.AlbumId is { } albumId ? $"/media/album/{albumId}" : $"/media/track/{s.TrackId}")" alt="" loading="lazy" decoding="async">
+                            </span>
+                        </td>
+                    }
+                    <td>
+                        <a class="title" href="@(url)/track/@s.TrackId">@s.Title</a>
+                        <span class="muted"> · @Ui.ArtistLinks(Model.UserName, s.Artists)</span>
+                        @if (s.Album is not null)
+                        {
+                            <div class="sub"><a href="@(url)/album/@s.AlbumId">@s.Album</a></div>
+                        }
+                    </td>
+                    @if (hearts)
+                    {
+                        <td class="love">
+                            <partial name="_LoveButton" model="new LoveButtonModel(Model.UserName, s.TrackId, Model.Loved?.Contains(s.TrackId) == true, Model.CanLove, here)" />
+                        </td>
+                    }
+                    <td class="time" title="@Ui.FullTime(s.ListenedAt, Model.Zone)">@Ui.Relative(s.ListenedAt, Model.Zone)</td>
+                    @if (Model.CanDelete)
+                    {
+                        <td class="actions">
+                            <form method="post" asp-page="/Users/Scrobbles" asp-page-handler="Delete"
+                                  asp-route-username="@Model.UserName" asp-route-id="@s.Id" asp-route-p="@Model.Page"
+                                  onsubmit="return confirm('Delete this scrobble?')">
+                                <button type="submit" class="icon-button" title="Delete scrobble" aria-label="Delete scrobble">✕</button>
+                            </form>
+                        </td>
+                    }
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

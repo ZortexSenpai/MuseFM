@@ -1,0 +1,13 @@
+@model AppUser
+@* A user's banner with their picture overlapping it, as on the profile; an empty frame when there is no banner. *@
+<div class="image-preview">
+    @if (Model.BannerFile is { } banner)
+    {
+        <div class="profile-banner"><img src="@ProfileImages.Url(banner)" alt="" decoding="async"></div>
+    }
+    else
+    {
+        <div class="profile-banner empty"><span class="muted">No banner</span></div>
+    }
+    @Ui.Avatar(Model.UserName!, Model.AvatarFile, large: true)
+</div>

@@ -1,0 +1,78 @@
+@inject SignInManager<AppUser> SignInManager
+@inject UserManager<AppUser> UserManager
+@{
+    var signedIn = SignInManager.IsSignedIn(User);
+    var me = signedIn ? UserManager.GetUserName(User) : null;
+    var title = ViewData["Title"] as string;
+    var prefs = ViewerPreferences.Current;
+    var path = Context.Request.Path;
+    // Marks the section of the site being looked at in the top bar.
+    string Here(string prefix) => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase) ? "here" : "";
+}
+<!DOCTYPE html>
+@* data-theme only when a mode is chosen (Razor would render an empty data- attribute for null); its value is the theme's name in site.css. *@
+<html lang="en" @(prefs.ThemeAttribute is { } theme ? Html.Raw($"data-theme=\"{theme}\" ") : null)data-accent="@prefs.Accent">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="@prefs.ColorScheme">
+    <title>@(string.IsNullOrEmpty(title) ? "MuseFM" : $"{title} · MuseFM")</title>
+    <link rel="icon" href="~/favicon.svg" type="image/svg+xml">
+    <link rel="preload" href="~/fonts/archivo-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true">
+    <script src="~/js/charts.js" asp-append-version="true" defer></script>
+    <script src="~/js/media.js" asp-append-version="true" defer></script>
+    <script src="~/js/menus.js" asp-append-version="true" defer></script>
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body>
+<header class="topbar">
+    <div class="container topbar-inner">
+        <a class="brand" href="/">
+            <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+                <circle cx="16" cy="16" r="16" fill="currentColor"/>
+                <circle cx="16" cy="16" r="12.5" fill="none" style="stroke:var(--bg)" stroke-opacity=".28"/>
+                <circle cx="16" cy="16" r="9.5" fill="none" style="stroke:var(--bg)" stroke-opacity=".28"/>
+                <circle cx="16" cy="16" r="6.5" style="fill:var(--pop-2)"/>
+                <path d="M16 10.5v3" style="stroke:var(--ink)" stroke-width="1.5"/>
+                <circle cx="16" cy="16" r="1.6" style="fill:var(--bg)"/>
+            </svg>
+            <span>Muse<b>FM</b></span>
+        </a>
+        <form class="search" method="get" action="/search" role="search">
+            <input type="search" name="q" placeholder="Search users…" aria-label="Search users" value="@Context.Request.Query["q"]">
+        </form>
+        <nav class="nav">
+            <a class="mobile-only" href="/search">Search</a>
+            @if (signedIn && me is not null)
+            {
+                <a class="@Here("/feed")" href="/feed">Feed</a>
+                <a class="@Here("/u/" + me)" href="@Ui.UserUrl(me)">My stats</a>
+                <a class="@Here("/settings")" href="/settings">Settings</a>
+                @if (User.IsInRole(Roles.Admin))
+                {
+                    <a class="@Here("/admin")" href="/admin">Admin</a>
+                }
+                <form method="post" asp-page="/Account/Logout" class="inline">
+                    <button type="submit" class="link-button">Log out</button>
+                </form>
+            }
+            else
+            {
+                <a href="/login">Log in</a>
+                <a class="button small primary" href="/register">Sign up</a>
+            }
+        </nav>
+    </div>
+</header>
+<main class="container">
+    @RenderBody()
+</main>
+<footer class="footer">
+    <div class="container">
+        <div class="dial" aria-hidden="true"><span>88</span><span>92</span><span>96</span><span>100</span><span>104</span><span>108 MHz</span><i></i></div>
+        <p><span>MuseFM · self-hosted listening statistics</span><span>Your plays, on your own server.</span></p>
+    </div>
+</footer>
+</body>
+</html>

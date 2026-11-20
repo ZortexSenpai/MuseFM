@@ -1,0 +1,95 @@
+@page "/u/{username}/taste"
+@model MuseFM.Pages.Users.TasteModel
+@{
+    var header = Model.Header("taste");
+    ViewData["Title"] = Model.Other is null ? $"{Model.UserName} · Taste" : $"{Model.UserName} and {Model.Other} · Taste";
+    var url = Model.ProfileUrl;
+    var path = $"{url}/taste";
+    var query = Model.Other is null ? null : new[] { new KeyValuePair<string, string>("with", Model.Other) };
+    var rangeTabs = new RangeTabsModel(Model.Period, path, Model.FirstYear, Model.Zone, query);
+    var result = Model.Result;
+}
+<partial name="_UserHeader" model="header" />
+
+<div class="section-head">
+    <h2>@(Model.Other is null ? "Compare taste" : $"{Model.UserName} and {Model.Other}") <span class="muted">· @Model.Period.Label()</span></h2>
+    <partial name="_RangeTabs" model="rangeTabs" />
+</div>
+
+<form method="get" class="inline-form">
+    <input type="hidden" name="range" value="@Model.Period.Slug()">
+    <input type="search" name="with" value="@Model.Other" placeholder="Username to compare with" aria-label="Compare with" required>
+    <button type="submit" class="button primary">Compare</button>
+</form>
+
+@if (Model.Problem is not null)
+{
+    <div class="alert error">@Model.Problem</div>
+}
+
+@if (result is not null && Model.Other is { } other)
+{
+    var percent = (int)Math.Round(result.Score * 100);
+    var otherUrl = Ui.UserUrl(other);
+    <section class="card taste-meter">
+        <div class="taste-score">
+            <span class="tile-value">@percent%</span>
+            <span class="taste-level">@result.Level</span>
+        </div>
+        <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@percent" aria-label="Compatibility">
+            <span style="width:@(percent)%"></span>
+        </div>
+        <p class="muted">
+            @if (result.SharedCount == 0)
+            {
+                @($"No artists in common: {Model.UserName} played {Ui.Number(result.Artists)} and {other} {Ui.Number(result.OtherArtists)}.")
+            }
+            else
+            {
+                @($"{Ui.Number(result.SharedCount)} artists in common, out of {Ui.Number(result.Artists)} that {Model.UserName} played and {Ui.Number(result.OtherArtists)} that {other} played.")
+            }
+        </p>
+    </section>
+
+    <div class="grid-3">
+        <section class="card">
+            <h3>In common</h3>
+            @if (result.Shared.Count == 0)
+            {
+                <p class="empty-note">Nothing yet.</p>
+            }
+            else
+            {
+                <table class="list compact">
+                    <thead>
+                    <tr><th>Artist</th><th class="num" title="@Model.UserName">@Model.UserName</th><th class="num" title="@other">@other</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var artist in result.Shared)
+                    {
+                        <tr>
+                            <td class="mover"><a class="title" href="@(url)/artist/@artist.Id">@artist.Name</a></td>
+                            <td class="num">@Ui.Number(artist.Plays)</td>
+                            <td class="num">@Ui.Number(artist.OtherPlays)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </section>
+        <section class="card">
+            <h3>Only @other</h3>
+            <p class="hint">@other's top artists that @Model.UserName has never played.</p>
+            <partial name="_TopList" model="new TopListModel(other, ChartKind.Artists, result.OnlyOther)" />
+        </section>
+        <section class="card">
+            <h3>Only @Model.UserName</h3>
+            <p class="hint">@Model.UserName's top artists that @other has never played.</p>
+            <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Artists, result.OnlyUser)" />
+        </section>
+    </div>
+}
+else if (Model.Problem is null)
+{
+    <div class="card empty-state"><p class="muted">Enter a username to see what you have in common.</p></div>
+}

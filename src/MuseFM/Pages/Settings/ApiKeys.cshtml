@@ -1,0 +1,119 @@
+@page "/settings/api-keys"
+@model MuseFM.Pages.Settings.ApiKeysModel
+@{
+    ViewData["Title"] = "API keys";
+    ViewData["Tab"] = "keys";
+}
+<partial name="_SettingsNav" />
+
+@if (Model.NewToken is not null)
+{
+    <div class="alert success">
+        <strong>API key “@Model.NewTokenName” created.</strong> Copy it now — it will not be shown again.
+        <div class="copy-row">
+            <code id="new-token">@Model.NewToken</code>
+            <button type="button" class="button small" onclick="navigator.clipboard.writeText(document.getElementById('new-token').textContent); this.textContent='Copied'">Copy</button>
+        </div>
+    </div>
+}
+
+<section class="card">
+    <h2>API keys</h2>
+    <p class="muted">An API key lets a scrobbler (music player, browser extension, multi-scrobbler…) submit plays to your account. Create one key per client so you can revoke them individually.</p>
+    <form method="post" asp-page-handler="Create" class="inline-form">
+        <input name="name" placeholder="Name, e.g. Navidrome" maxlength="64" required aria-label="Key name">
+        <button type="submit" class="button primary">Create key</button>
+    </form>
+    @if (Model.Keys.Count == 0)
+    {
+        <p class="empty-note">You have no API keys yet.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="list">
+                <thead><tr><th>Name</th><th>Key</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var key in Model.Keys)
+                {
+                    <tr>
+                        <td class="title">@key.Name</td>
+                        <td><code>@(key.Prefix)…</code></td>
+                        <td class="muted">@Ui.Date(key.CreatedAt, Model.Zone)</td>
+                        <td class="muted">@Ui.DateAndTime(key.LastUsedAt, Model.Zone)</td>
+                        <td class="actions">
+                            <form method="post" asp-page-handler="Revoke" asp-route-id="@key.Id" onsubmit="return confirm('Revoke this key? Clients using it will stop scrobbling.')">
+                                <button type="submit" class="button small danger">Revoke</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="card">
+    <h2>Connect a scrobbler</h2>
+    <div class="grid-2">
+        <div>
+            <h3>ListenBrainz API <span class="badge accent">recommended</span></h3>
+            <dl class="kv">
+                <dt>API URL</dt>
+                <dd><code>@Model.BaseUrl/apis/listenbrainz</code></dd>
+                <dt>Token</dt>
+                <dd>one of your API keys</dd>
+            </dl>
+            <p class="hint">
+                For Navidrome, Jellyfin, Pano Scrobbler, Web Scrobbler, multi-scrobbler and any client that lets you set a custom ListenBrainz URL.
+                Some clients expect the URL with the version, e.g. Navidrome: <code>ND_LISTENBRAINZ_BASEURL=@Model.BaseUrl/apis/listenbrainz/1/</code>
+            </p>
+        </div>
+        <div>
+            <h3>Last.fm / Audioscrobbler API</h3>
+            <dl class="kv">
+                <dt>API URL</dt>
+                <dd><code>@Model.BaseUrl/apis/audioscrobbler/2.0/</code></dd>
+                <dt>Username</dt>
+                <dd><code>@Model.UserName</code></dd>
+                <dt>Password</dt>
+                <dd>one of your API keys <span class="muted">(your account password works too)</span></dd>
+            </dl>
+            <p class="hint">For clients with a custom Last.fm-compatible / GNU FM server option. Any value works for the client's API key and secret.</p>
+        </div>
+    </div>
+</section>
+
+<section class="card">
+    <h2>Last.fm API sessions</h2>
+    <p class="muted">Clients that logged in through the Last.fm-compatible API. Revoking an API key also ends its sessions.</p>
+    @if (Model.Sessions.Count == 0)
+    {
+        <p class="empty-note">No active sessions.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="list">
+                <thead><tr><th>Client</th><th>Signed in with</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var session in Model.Sessions)
+                {
+                    <tr>
+                        <td class="title">@(session.Client ?? "Unknown client")</td>
+                        <td class="muted">@(session.ApiKey is { } k ? $"API key “{k.Name}”" : "Account password")</td>
+                        <td class="muted">@Ui.Date(session.CreatedAt, Model.Zone)</td>
+                        <td class="muted">@Ui.DateAndTime(session.LastUsedAt, Model.Zone)</td>
+                        <td class="actions">
+                            <form method="post" asp-page-handler="RevokeSession" asp-route-id="@session.Id">
+                                <button type="submit" class="button small danger">Revoke</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

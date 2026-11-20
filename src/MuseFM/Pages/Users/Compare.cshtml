@@ -1,0 +1,127 @@
+@page "/u/{username}/compare"
+@model MuseFM.Pages.Users.CompareModel
+@{
+    var header = Model.Header("compare");
+    ViewData["Title"] = $"{Model.UserName} · Compare";
+    var d = Model.Data;
+    var url = Model.ProfileUrl;
+    var tiles = new (string Label, int Now, int Before)[]
+    {
+        ("Scrobbles", d.CurrentTotals.Scrobbles, d.PreviousTotals.Scrobbles),
+        ("Artists", d.CurrentTotals.Artists, d.PreviousTotals.Artists),
+        ("Tracks", d.CurrentTotals.Tracks, d.PreviousTotals.Tracks),
+        ("New artists", d.NewArtists, d.PreviousNewArtists),
+    };
+    var tops = new (string Title, ChartKind Kind, IReadOnlyList<RankedEntry> Entries)[]
+    {
+        ("Top artists", ChartKind.Artists, d.TopArtists),
+        ("Top albums", ChartKind.Albums, d.TopAlbums),
+        ("Top tracks", ChartKind.Tracks, d.TopTracks),
+    };
+}
+<partial name="_UserHeader" model="header" />
+
+<div class="section-head">
+    <nav class="pills" aria-label="Compare by">
+        @foreach (var period in Enum.GetValues<ComparePeriod>())
+        {
+            <a class="pill @(period == d.Period ? "active" : "")" href="@Model.CompareUrl(period)">@period</a>
+        }
+    </nav>
+    <nav class="period-nav" aria-label="Choose the @Model.Unit">
+        <a class="button small" href="@Model.CompareUrl(d.Period, d.Offset + 1)" title="Earlier @Model.Unit" aria-label="Earlier @Model.Unit">‹</a>
+        @if (d.Offset > 0)
+        {
+            <a class="button small" href="@Model.CompareUrl(d.Period, d.Offset - 1)" title="Later @Model.Unit" aria-label="Later @Model.Unit">›</a>
+            <a class="button small" href="@Model.CompareUrl(d.Period)">Now</a>
+        }
+        else
+        {
+            <span class="button small disabled" aria-disabled="true">›</span>
+        }
+    </nav>
+</div>
+
+<h2 class="compare-title">
+    <span class="key-dot current" aria-hidden="true"></span>@d.Current.Description
+    <span class="muted">vs <span class="key-dot previous" aria-hidden="true"></span>@d.Previous.Description</span>
+</h2>
+<p class="hint">
+    @if (d.Ongoing)
+    {
+        @($"{d.Current.Name} isn't over yet, so the changes compare it with {d.Previous.Name.ToLowerInvariant()} up to the same point. {d.Previous.Name} had {Ui.Number(d.PreviousScrobblesInFull)} scrobbles in total.")
+    }
+    else
+    {
+        @($"Changes compare the whole {Model.Unit} with the {Model.Unit} before.")
+    }
+</p>
+
+<div class="tiles">
+    @foreach (var tile in tiles)
+    {
+        var change = Ui.Delta(tile.Now, tile.Before);
+        <div class="tile">
+            <span class="tile-value">@Ui.Number(tile.Now)</span>
+            <span class="tile-label">@tile.Label</span>
+            <span class="tile-delta @change.Css">@change.Text <span class="muted">vs @Ui.Number(tile.Before)</span></span>
+        </div>
+    }
+</div>
+
+<div class="grid-2">
+    <section class="card">
+        <div class="card-head"><h3>Running total</h3></div>
+        <partial name="_LineChart" model="Model.PaceChart" />
+    </section>
+    <section class="card">
+        <div class="card-head"><h3>Per @Model.BucketName.ToLowerInvariant()</h3></div>
+        <partial name="_ColumnChart" model="Model.BucketChart" />
+    </section>
+</div>
+
+<div class="grid-3">
+    @foreach (var top in tops)
+    {
+        <section class="card">
+            <h3>@top.Title</h3>
+            @if (top.Entries.Count == 0)
+            {
+                <p class="empty-note">@(d.Ongoing ? "Nothing played yet." : "Nothing played.")</p>
+            }
+            else
+            {
+                <table class="list compact movers">
+                    <thead>
+                    <tr>
+                        <th class="num">#</th>
+                        <th><span class="sr-only">Change</span></th>
+                        <th></th>
+                        <th class="num" title="@d.Current.Name">Now</th>
+                        <th class="num" title="@d.Previous.Name">Before</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in top.Entries)
+                    {
+                        var move = Ui.Movement(row.Entry.Rank, row.PreviousRank);
+                        <tr>
+                            <td class="num rank">@row.Entry.Rank</td>
+                            <td><span class="move @move.Css" title="@move.Title">@move.Text</span></td>
+                            <td class="mover">
+                                <a class="title" href="@(url)/@(top.Kind switch { ChartKind.Artists => "artist", ChartKind.Albums => "album", _ => "track" })/@row.Entry.Id">@row.Entry.Title</a>
+                                @if (top.Kind != ChartKind.Artists)
+                                {
+                                    <span class="sub">@Ui.ArtistLinks(Model.UserName, row.Entry.Artists)</span>
+                                }
+                            </td>
+                            <td class="num">@Ui.Number(row.Entry.Count)</td>
+                            <td class="num muted">@(row.PreviousCount > 0 ? Ui.Number(row.PreviousCount) : "—")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </section>
+    }
+</div>

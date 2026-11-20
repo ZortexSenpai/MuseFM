@@ -1,0 +1,129 @@
+@page "/u/{username}/track/{id:int}"
+@model MuseFM.Pages.Users.TrackModel
+@{
+    var track = Model.Track;
+    var header = Model.Header("tracks");
+    ViewData["Title"] = $"{track.Title} · {Model.UserName}";
+    var path = $"{Model.ProfileUrl}/track/{track.Id}";
+    var rangeTabs = new RangeTabsModel(Model.Period, path, Model.FirstYear, Model.Zone);
+    var loved = Model.Score == TrackFeedback.Love;
+    var history = new ScrobbleTableModel(Model.UserName, Model.Zone, Model.History.Items, false, Model.History.Page,
+        loved ? new HashSet<int> { track.Id } : null);
+    var pager = new PagerModel(Model.History.Page, Model.History.TotalPages, p => $"{path}?range={Model.Period.Slug()}&p={p}");
+}
+<partial name="_UserHeader" model="header" />
+
+<section class="artist-head@(Model.ShowCover ? " with-photo" : "")" style="@(Model.ShowCover ? $"--art:url(/media/track/{track.Id})" : null)">
+    @if (Model.ShowCover)
+    {
+        @* The cover of the album this track is usually scrobbled with. *@
+        <div class="sleeve" aria-hidden="true">
+            <div class="artist-photo square">
+                <span>@Ui.Initial(track.Title)</span>
+                <img src="/media/track/@track.Id" alt="">
+            </div>
+            <span class="disc"></span>
+        </div>
+    }
+    <div class="artist-text">
+        <p class="eyebrow">
+            Track
+            @if (User.IsInRole(Roles.Admin))
+            {
+                <a class="eyebrow-link" href="/admin/catalog/track/@track.Id">Edit</a>
+            }
+        </p>
+        <h2 class="artist-name">
+            @track.Title
+            @if (Model.IsOwner)
+            {
+                <form method="post" class="inline" asp-page-handler="Love" asp-route-username="@Model.UserName" asp-route-id="@track.Id">
+                    <input type="hidden" name="score" value="@(loved ? 0 : 1)">
+                    <button type="submit" class="button small love-toggle@(loved ? " loved" : "")" aria-pressed="@(loved ? "true" : "false")">
+                        <span aria-hidden="true">♥</span> @(loved ? "Loved" : "Love")
+                    </button>
+                </form>
+            }
+            else if (loved)
+            {
+                <span class="badge love-badge">♥ Loved</span>
+            }
+            @if (Model.Score == TrackFeedback.Hate)
+            {
+                <span class="badge" title="Marked as disliked on ListenBrainz">Disliked</span>
+            }
+        </h2>
+        <p class="byline">@Ui.ArtistLinks(Model.UserName, track.Artists)</p>
+        <p class="muted">
+            @Ui.Number(Model.Summary.AllTimeScrobbles) scrobbles · first @Ui.Date(Model.Summary.FirstListen, Model.Zone) · last @Ui.Relative(Model.Summary.LastListen, Model.Zone)
+            @if (track.LengthSeconds is { } length)
+            {
+                <span> · @Ui.Duration(length) long</span>
+            }
+            @if (Model.ListeningTime is { } time)
+            {
+                <span title="Scrobbles × track length"> · about @Ui.Elapsed(time) listened</span>
+            }
+        </p>
+        @if (Model.IsOwner || Model.IsObsession)
+        {
+            <div class="obsession-bar">
+                @if (Model.IsObsession)
+                {
+                    <span class="badge accent">Current obsession</span>
+                    @if (Model.IsOwner)
+                    {
+                        <span class="muted">@(Model.Obsession!.EndsAt is { } end ? $"on your profile until {Ui.DateAndTime(end, Model.Zone)}" : "on your profile until you change it")</span>
+                    }
+                }
+                @if (Model.IsOwner)
+                {
+                    <form method="post" class="obsession-form" asp-page-handler="Obsession" asp-route-username="@Model.UserName" asp-route-id="@track.Id">
+                        <label>
+                            <span>@(Model.IsObsession ? "Show it" : "Obsessed? Show it on your profile")</span>
+                            <select name="length">
+                                @foreach (var length in ObsessionService.Lengths)
+                                {
+                                    <option value="@length.Slug" selected="@(length.Slug == ObsessionService.DefaultLength)">@length.Label</option>
+                                }
+                            </select>
+                        </label>
+                        <button type="submit" class="button small">@(Model.IsObsession ? "Update" : "Set as obsession")</button>
+                    </form>
+                    @if (Model.IsObsession)
+                    {
+                        <form method="post" class="inline" asp-page-handler="EndObsession" asp-route-username="@Model.UserName" asp-route-id="@track.Id">
+                            <button type="submit" class="button small">Remove</button>
+                        </form>
+                    }
+                }
+            </div>
+        }
+        @if (track.MusicBrainzId is { } mbid)
+        {
+            <p class="source"><a href="https://musicbrainz.org/recording/@mbid" rel="noopener noreferrer nofollow" target="_blank">MusicBrainz</a></p>
+        }
+    </div>
+</section>
+
+<div class="section-head">
+    <h2>@Ui.Number(Model.Summary.Scrobbles) scrobbles <span class="muted">· @Model.Period.Label()</span></h2>
+    <partial name="_RangeTabs" model="rangeTabs" />
+</div>
+
+<section class="card">
+    <h3>Listening activity</h3>
+    <partial name="_Activity" model="Model.Activity" />
+</section>
+
+<div class="grid-2 align-start">
+    <section class="card">
+        <h3>Albums</h3>
+        <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Albums, Model.Albums)" />
+    </section>
+    <section class="card">
+        <h3>Scrobbles</h3>
+        <partial name="_ScrobbleTable" model="history" />
+        <partial name="_Pager" model="pager" />
+    </section>
+</div>

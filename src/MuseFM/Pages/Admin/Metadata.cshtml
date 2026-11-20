@@ -1,0 +1,151 @@
+@page "/admin/metadata"
+@model MuseFM.Pages.Admin.MetadataModel
+@{
+    ViewData["Title"] = "Metadata";
+    ViewData["Tab"] = "metadata";
+    var connectors = Model.Settings.All;
+}
+<partial name="_AdminNav" />
+
+@if (Model.StatusMessage is not null)
+{
+    <div class="alert @(Model.StatusIsError ? "error" : "success")">@Model.StatusMessage</div>
+}
+
+<p class="muted">
+    Metadata connectors supply album covers, artist photos and biographies for profiles and artist pages.
+    Active connectors are asked from top to bottom, and for each item the first answer wins.
+    Results are cached on this server; an item is looked up the first time it is shown.
+</p>
+
+@for (var i = 0; i < connectors.Count; i++)
+{
+    var c = connectors[i];
+    var info = MetadataModel.Describe(c.Kind);
+    var missing = Model.Settings.Missing(c);
+    var health = Model.Settings.Health(c.Kind);
+    var hasSecret = !string.IsNullOrEmpty(c.Secret);
+    var envKey = c.Kind == ConnectorKind.LastFm ? Model.Settings.EnvironmentLastFmApiKey : null;
+    var placeholder = hasSecret ? "Saved — leave empty to keep" : envKey is not null ? "Using MuseFM__LastFmApiKey" : "";
+    <section class="card connector" id="@c.Kind.ToString().ToLowerInvariant()">
+        <div class="card-head">
+            <h2>
+                <span class="connector-rank" title="Asked @(i + 1). of @connectors.Count">@(i + 1)</span>
+                @info.Name
+                @if (!c.Enabled)
+                {
+                    <span class="badge">Off</span>
+                }
+                else if (missing is not null)
+                {
+                    <span class="badge danger">Incomplete</span>
+                }
+                else if (health?.IsFailing == true)
+                {
+                    <span class="badge danger">Failing</span>
+                }
+                else
+                {
+                    <span class="badge accent">Active</span>
+                }
+            </h2>
+            <div class="order">
+                <form method="post" asp-page-handler="Move" asp-route-kind="@c.Kind" asp-route-delta="-1">
+                    <button type="submit" class="icon-button neutral" title="Ask earlier" aria-label="Move @info.Name up" disabled="@(i == 0)">↑</button>
+                </form>
+                <form method="post" asp-page-handler="Move" asp-route-kind="@c.Kind" asp-route-delta="1">
+                    <button type="submit" class="icon-button neutral" title="Ask later" aria-label="Move @info.Name down" disabled="@(i == connectors.Count - 1)">↓</button>
+                </form>
+            </div>
+        </div>
+        <p class="muted">@info.Provides</p>
+
+        @if (health is { IsFailing: true, LastError: { } failedAt })
+        {
+            <div class="alert error">Last error @Ui.Relative(new DateTimeOffset(failedAt, TimeSpan.Zero).ToUnixTimeSeconds(), TimeZoneInfo.Utc): @health.Error</div>
+        }
+
+        <form method="post" asp-page-handler="Save" asp-route-kind="@c.Kind">
+            <label class="check">
+                <input type="checkbox" name="Enabled" value="true" checked="@c.Enabled">
+                <span>Enabled</span>
+            </label>
+            <div class="form-grid">
+                @if (info.HasUrl)
+                {
+                    <label class="field">
+                        <span>Server URL</span>
+                        <input type="url" name="BaseUrl" value="@c.BaseUrl" maxlength="512"
+                               placeholder="@(c.Kind == ConnectorKind.Maloja ? "http://maloja:42010" : "https://music.example.com")">
+                    </label>
+                }
+                @if (c.Kind == ConnectorKind.Navidrome)
+                {
+                    <label class="field">
+                        <span>Username</span>
+                        <input name="Username" value="@c.Username" maxlength="256" autocomplete="off" spellcheck="false">
+                    </label>
+                }
+                @if (info.SecretLabel is not null)
+                {
+                    <label class="field">
+                        <span>@info.SecretLabel</span>
+                        <input type="password" name="Secret" autocomplete="new-password" spellcheck="false" placeholder="@placeholder">
+                    </label>
+                }
+            </div>
+            @if (hasSecret && info.SecretLabel is not null)
+            {
+                <label class="check">
+                    <input type="checkbox" name="ClearSecret" value="true">
+                    <span>Remove the saved @info.SecretLabel!.ToLowerInvariant()</span>
+                </label>
+            }
+            <p class="hint">
+                @switch (c.Kind)
+                {
+                    case ConnectorKind.Navidrome:
+                        <text>Any account that can see your library works. The password is stored encrypted and never sent to Navidrome (Subsonic token authentication).
+                            Artist images and biographies depend on the agents configured in Navidrome (<code>ND_AGENTS</code>).</text>
+                        break;
+                    case ConnectorKind.Maloja:
+                        <text>Maloja's API needs no key for this. Maloja only has pictures of artists and albums in its own database,
+                            so it helps most when it receives the same scrobbles as MuseFM. Maloja's placeholder pictures are ignored.</text>
+                        break;
+                    case ConnectorKind.ListenBrainz:
+                        <text>Copy your user token from listenbrainz.org/settings; ListenBrainz requires one for lookups.
+                            Requests are limited to one per second, so covers appear gradually the first time a long list is shown.</text>
+                        break;
+                    default:
+                        <text>Get a free key at last.fm/api/account/create. This key is also used for “Import from Last.fm”.</text>
+                        if (envKey is not null)
+                        {
+                            <text> Leave it empty to use the key from <code>MuseFM__LastFmApiKey</code>.</text>
+                        }
+                        break;
+                }
+            </p>
+            <button type="submit" class="button primary">Save</button>
+        </form>
+    </section>
+}
+
+<partial name="_MetadataCache" model="Model.Cache" />
+
+<script>
+    // While a fetch runs, reload only the cache card, so whatever is typed in the forms above stays.
+    (function poll() {
+        setTimeout(async () => {
+            const card = document.getElementById("metadata-cache");
+            if (!card || !card.classList.contains("is-running")) return;
+            try {
+                const response = await fetch("/admin/metadata?handler=Cache", { cache: "no-store" });
+                const html = await response.text();
+                if (response.ok && html.includes('id="metadata-cache"')) card.outerHTML = html;
+            } catch {
+                // Try again on the next tick.
+            }
+            poll();
+        }, 3000);
+    })();
+</script>

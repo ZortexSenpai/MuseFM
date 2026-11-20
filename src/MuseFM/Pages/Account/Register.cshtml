@@ -1,0 +1,47 @@
+@page "/register"
+@model MuseFM.Pages.Account.RegisterModel
+@{
+    ViewData["Title"] = "Sign up";
+}
+<div class="auth">
+<aside class="auth-side alt">
+    <h2>Start counting.</h2>
+    <p>Every play, kept on your own server.</p>
+    <span class="disc" aria-hidden="true"></span>
+</aside>
+<div class="auth-card">
+    <h1>Create an account</h1>
+    @if (!Model.RegistrationOpen)
+    {
+        <div class="alert error">Registration is disabled on this server. Ask the administrator for an account.</div>
+    }
+    else
+    {
+        @if (Model.IsFirstUser)
+        {
+            <div class="alert success">You are the first user — this account will be the administrator.</div>
+        }
+        <form method="post">
+            <div asp-validation-summary="ModelOnly" class="alert error"></div>
+            <label class="field">
+                <span>Username</span>
+                <input asp-for="Input.Username" autocomplete="username" autofocus>
+                <span class="hint">Shown in your profile URL. Letters, digits, dots, dashes and underscores.</span>
+                <span asp-validation-for="Input.Username" class="field-error"></span>
+            </label>
+            <label class="field">
+                <span>Password</span>
+                <input asp-for="Input.Password" autocomplete="new-password">
+                <span asp-validation-for="Input.Password" class="field-error"></span>
+            </label>
+            <label class="field">
+                <span>Confirm password</span>
+                <input asp-for="Input.ConfirmPassword" autocomplete="new-password">
+                <span asp-validation-for="Input.ConfirmPassword" class="field-error"></span>
+            </label>
+            <button type="submit" class="button primary wide">Create account</button>
+        </form>
+    }
+    <p class="muted center">Already have an account? <a href="/login">Log in</a></p>
+</div>
+</div>

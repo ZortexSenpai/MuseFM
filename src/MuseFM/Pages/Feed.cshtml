@@ -1,0 +1,86 @@
+@page "/feed"
+@model MuseFM.Pages.FeedModel
+@inject MetadataService Metadata
+@{
+    ViewData["Title"] = "Feed";
+    var covers = Metadata.Enabled && ViewerPreferences.Current.ShowArtwork;
+}
+<h1>Feed</h1>
+<p class="lede">What the people you follow are listening to.</p>
+
+@if (Model.PlayingNow.Count > 0)
+{
+    <div class="playing-now">
+        @foreach (var (name, np) in Model.PlayingNow)
+        {
+            <div class="card nowplaying">
+                <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>
+                <div>
+                    <div class="label"><a href="@Ui.UserUrl(name)">@name</a> is listening to</div>
+                    <span class="title">@np.Title</span>
+                    <span class="muted"> · @string.Join(", ", np.Artists)</span>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<section class="card">
+    @if (Model.Feed.Rows.Count == 0)
+    {
+        <p class="empty-note">
+            @(Model.Older ? "Nothing older." : "Nothing here yet. Find people with the search and follow them from their profile.")
+        </p>
+        <a href="/search">Find people</a>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="list">
+                <tbody>
+                @foreach (var row in Model.Feed.Rows)
+                {
+                    var userUrl = Ui.UserUrl(row.UserName);
+                    var s = row.Scrobble;
+                    <tr>
+                        <td class="feed-user">
+                            <a class="user-link" href="@userUrl">
+                                @Ui.Avatar(row.UserName, row.AvatarFile)
+                                <span class="title">@row.UserName</span>
+                            </a>
+                        </td>
+                        @if (covers)
+                        {
+                            <td class="cover">
+                                <span class="thumb"><img src="@(s.AlbumId is { } albumId ? $"/media/album/{albumId}" : $"/media/track/{s.TrackId}")" alt="" loading="lazy" decoding="async"></span>
+                            </td>
+                        }
+                        <td>
+                            <a class="title" href="@(userUrl)/track/@s.TrackId">@s.Title</a>
+                            <span class="muted"> · @Ui.ArtistLinks(row.UserName, s.Artists)</span>
+                            @if (s.Album is not null)
+                            {
+                                <div class="sub"><a href="@(userUrl)/album/@s.AlbumId">@s.Album</a></div>
+                            }
+                        </td>
+                        <td class="time" title="@Ui.FullTime(s.ListenedAt, Model.Zone)">@Ui.Relative(s.ListenedAt, Model.Zone)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    @if (Model.Older || Model.Feed.Next is not null)
+    {
+        <nav class="pager" aria-label="Pagination">
+            @if (Model.Older)
+            {
+                <a class="button small" href="/feed">← Newest</a>
+            }
+            @if (Model.Feed.Next is { } next)
+            {
+                <a class="button small" href="/feed?before=@next">Older →</a>
+            }
+        </nav>
+    }
+</section>

@@ -1,0 +1,67 @@
+@page "/u/{username}/loved"
+@model MuseFM.Pages.Users.LovedModel
+@{
+    var header = Model.Header("loved");
+    ViewData["Title"] = $"{Model.UserName} · Loved tracks";
+    var url = Model.ProfileUrl;
+    var show = Model.Disliked ? "&show=disliked" : "";
+    var pager = new PagerModel(Model.Tracks.Page, Model.Tracks.TotalPages, p => $"{url}/loved?p={p}{show}");
+    var here = HttpContext.Request.Path + HttpContext.Request.QueryString;
+}
+<partial name="_UserHeader" model="header" />
+<div class="section-head">
+    <h2>@Ui.Number(Model.Tracks.Total) @(Model.Disliked ? "disliked" : "loved") track@(Model.Tracks.Total == 1 ? "" : "s")</h2>
+    @if (Model.DislikedCount > 0)
+    {
+        <nav class="pills" aria-label="Show">
+            <a class="pill@(Model.Disliked ? "" : " active")" href="@(url)/loved">Loved</a>
+            <a class="pill@(Model.Disliked ? " active" : "")" href="@(url)/loved?show=disliked">Disliked</a>
+        </nav>
+    }
+</div>
+<section class="card">
+    @if (Model.Tracks.Items.Count == 0)
+    {
+        <p class="empty-note">
+            @(Model.IsOwner
+                ? "No loved tracks yet. Love a track with the ♥ next to it, from a scrobbler that supports loving, or import them from Last.fm or ListenBrainz."
+                : "No loved tracks yet.")
+        </p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="list">
+                <thead>
+                <tr>
+                    @if (!Model.Disliked)
+                    {
+                        <th><span class="sr-only">Loved</span></th>
+                    }
+                    <th>Track</th>
+                    <th class="num">Scrobbles</th>
+                    <th class="num">@(Model.Disliked ? "Disliked" : "Loved")</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var track in Model.Tracks.Items)
+                {
+                    <tr>
+                        @if (!Model.Disliked)
+                        {
+                            <td class="love"><partial name="_LoveButton" model="new LoveButtonModel(Model.UserName, track.TrackId, true, Model.IsOwner, here)" /></td>
+                        }
+                        <td>
+                            <a class="title" href="@(url)/track/@track.TrackId">@track.Title</a>
+                            <span class="muted"> · @Ui.ArtistLinks(Model.UserName, track.Artists)</span>
+                        </td>
+                        <td class="num">@(track.Scrobbles > 0 ? Ui.Number(track.Scrobbles) : "—")</td>
+                        <td class="time" title="@Ui.FullTime(track.CreatedAt, Model.Zone)">@Ui.Date(track.CreatedAt, Model.Zone)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model="pager" />
+    }
+</section>

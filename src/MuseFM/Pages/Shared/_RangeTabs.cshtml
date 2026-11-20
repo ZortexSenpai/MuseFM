@@ -1,0 +1,85 @@
+@model RangeTabsModel
+@{
+    var current = Model.Current;
+    var today = current.TodayDate;
+    var calendar = current.Kind != PeriodKind.Preset;
+    // Months are offered for the year being looked at, or the current one.
+    var year = calendar ? current.FirstDay!.Value.Year : today.Year;
+    var earlier = current.Step(-1, Model.Zone);
+    var later = current.Step(1, Model.Zone);
+    string Active(bool on) => on ? " active" : "";
+}
+<div class="range-picker">
+    <nav class="pills" aria-label="Time range">
+        @foreach (var range in Enum.GetValues<StatRange>())
+        {
+            <a class="pill@(Active(current.Preset == range))" href="@Model.Url(StatPeriod.Slug(range))">@StatPeriod.Label(range)</a>
+        }
+    </nav>
+    <details class="range-more" data-menu>
+        <summary class="range-toggle@(Active(calendar))">@(calendar ? current.Label() : "Dates") <span aria-hidden="true">▾</span></summary>
+        <div class="range-menu">
+            <div>
+                <span class="range-heading">Year</span>
+                <div class="chips">
+                    @for (var y = today.Year; y >= Math.Min(Model.FirstYear, today.Year); y--)
+                    {
+                        <a class="chip@(Active(current.Kind == PeriodKind.Year && current.FirstDay!.Value.Year == y))" href="@Model.Url(y.ToString(System.Globalization.CultureInfo.InvariantCulture))">@y</a>
+                    }
+                </div>
+            </div>
+            <div>
+                <span class="range-heading">Month of @year</span>
+                <div class="chips months">
+                    @for (var m = 1; m <= 12; m++)
+                    {
+                        var first = new DateOnly(year, m, 1);
+                        var name = first.ToString("MMM", System.Globalization.CultureInfo.InvariantCulture);
+                        if (first > today)
+                        {
+                            <span class="chip disabled">@name</span>
+                        }
+                        else
+                        {
+                            <a class="chip@(Active(current.Kind == PeriodKind.Month && current.FirstDay == first))" href="@Model.Url(first.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture))">@name</a>
+                        }
+                    }
+                </div>
+            </div>
+            <form method="get" action="@Model.Path">
+                @foreach (var (name, value) in Model.Query ?? [])
+                {
+                    <input type="hidden" name="@name" value="@value">
+                }
+                <span class="range-heading">Custom</span>
+                <div class="range-custom">
+                    <input type="date" name="from" aria-label="From" required max="@today.ToString("yyyy-MM-dd")" value="@current.FirstDay?.ToString("yyyy-MM-dd")">
+                    <span class="muted">to</span>
+                    <input type="date" name="to" aria-label="To" required max="@today.ToString("yyyy-MM-dd")" value="@(calendar ? current.LastDay.ToString("yyyy-MM-dd") : "")">
+                    <button type="submit" class="button small primary">Show</button>
+                </div>
+            </form>
+        </div>
+    </details>
+    @if (calendar)
+    {
+        <nav class="period-nav" aria-label="Step through periods">
+            @if (earlier is not null)
+            {
+                <a class="button small" href="@Model.Url(earlier)" title="@earlier.Label()" aria-label="Earlier: @earlier.Label()">‹</a>
+            }
+            else
+            {
+                <span class="button small disabled" aria-disabled="true">‹</span>
+            }
+            @if (later is not null)
+            {
+                <a class="button small" href="@Model.Url(later)" title="@later.Label()" aria-label="Later: @later.Label()">›</a>
+            }
+            else
+            {
+                <span class="button small disabled" aria-disabled="true">›</span>
+            }
+        </nav>
+    }
+</div>

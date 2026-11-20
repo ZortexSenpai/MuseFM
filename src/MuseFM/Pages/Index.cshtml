@@ -1,0 +1,45 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "";
+}
+<section class="hero">
+    <div class="hero-copy">
+        <p class="eyebrow">Self-hosted scrobbling</p>
+        <h1>Your listening history, <em>on your own server.</em></h1>
+        <p>MuseFM collects scrobbles from your music players through ListenBrainz- and Last.fm-compatible APIs and turns them into charts and statistics.</p>
+        <div class="hero-actions">
+            @if (Model.RegistrationOpen)
+            {
+                <a class="button primary" href="/register">Create an account</a>
+            }
+            <a class="button" href="/login">Log in</a>
+            <a class="button" href="/search">Browse users</a>
+        </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+        <partial name="_HeroArt" />
+    </div>
+</section>
+<p class="band">
+    <small>Scrobble from</small>
+    <span>Navidrome</span><span>Jellyfin</span><span>Pano Scrobbler</span><span>Web Scrobbler</span><span>multi-scrobbler</span>
+</p>
+<section class="features">
+    <div class="feature">
+        <h3>Scrobble from anywhere</h3>
+        <p>Point Navidrome, Jellyfin, Pano Scrobbler, Web Scrobbler or multi-scrobbler at MuseFM using the ListenBrainz or Last.fm protocol.</p>
+    </div>
+    <div class="feature">
+        <h3>Bring your history</h3>
+        <p>Import from Maloja, Last.fm (CSV or directly from your account), lastfmstats.com and ListenBrainz exports.</p>
+    </div>
+    <div class="feature">
+        <h3>Charts and stats</h3>
+        <p>Top artists, albums and tracks for any period, listening activity, and your full scrobble history.</p>
+    </div>
+    <div class="feature">
+        <h3>Your data stays yours</h3>
+        <p>One SQLite file in a Docker volume. Export everything at any time in Maloja or Last.fm format.</p>
+    </div>
+</section>

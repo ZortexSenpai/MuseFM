@@ -1,0 +1,19 @@
+@page "/u/{username}/{kind}"
+@model MuseFM.Pages.Users.ChartsModel
+@{
+    var kindName = Model.Kind.ToString();
+    ViewData["Title"] = $"{Model.UserName} · Top {kindName.ToLowerInvariant()}";
+    var path = $"{Model.ProfileUrl}/{kindName.ToLowerInvariant()}";
+    var rangeTabs = new RangeTabsModel(Model.Period, path, Model.FirstYear, Model.Zone);
+    var list = new TopListModel(Model.UserName, Model.Kind, Model.Chart.Items);
+    var pager = new PagerModel(Model.Chart.Page, Model.Chart.TotalPages, p => $"{path}?range={Model.Period.Slug()}&p={p}");
+}
+<partial name="_UserHeader" model="Model.Header(kindName.ToLowerInvariant())" />
+<div class="section-head">
+    <h2>Top @kindName.ToLowerInvariant() <span class="muted">· @Model.Period.Label() · @Ui.Number(Model.Chart.Total)</span></h2>
+    <partial name="_RangeTabs" model="rangeTabs" />
+</div>
+<section class="card">
+    <partial name="_TopList" model="list" />
+    <partial name="_Pager" model="pager" />
+</section>

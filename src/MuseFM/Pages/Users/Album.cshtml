@@ -1,0 +1,65 @@
+@page "/u/{username}/album/{id:int}"
+@model MuseFM.Pages.Users.AlbumModel
+@{
+    var album = Model.Album;
+    var header = Model.Header("albums");
+    ViewData["Title"] = $"{album.Title} · {Model.UserName}";
+    var path = $"{Model.ProfileUrl}/album/{album.Id}";
+    var rangeTabs = new RangeTabsModel(Model.Period, path, Model.FirstYear, Model.Zone);
+    var history = new ScrobbleTableModel(Model.UserName, Model.Zone, Model.History.Items, false, Model.History.Page, Model.Loved, Model.IsOwner);
+    var pager = new PagerModel(Model.History.Page, Model.History.TotalPages, p => $"{path}?range={Model.Period.Slug()}&p={p}");
+}
+<partial name="_UserHeader" model="header" />
+
+<section class="artist-head@(Model.ShowCover ? " with-photo" : "")" style="@(Model.ShowCover ? $"--art:url(/media/album/{album.Id})" : null)">
+    @if (Model.ShowCover)
+    {
+        <div class="sleeve" aria-hidden="true">
+            <div class="artist-photo square">
+                <span>@Ui.Initial(album.Title)</span>
+                <img src="/media/album/@album.Id" alt="">
+            </div>
+            <span class="disc"></span>
+        </div>
+    }
+    <div class="artist-text">
+        <p class="eyebrow">
+            Album
+            @if (User.IsInRole(Roles.Admin))
+            {
+                <a class="eyebrow-link" href="/admin/catalog/album/@album.Id">Edit</a>
+            }
+        </p>
+        <h2 class="artist-name">@album.Title</h2>
+        <p class="byline">@Ui.ArtistLinks(Model.UserName, album.Artists)</p>
+        <p class="muted">
+            @Ui.Number(Model.Summary.AllTimeScrobbles) scrobbles · first @Ui.Date(Model.Summary.FirstListen, Model.Zone) · last @Ui.Relative(Model.Summary.LastListen, Model.Zone)
+        </p>
+        @if (album.MusicBrainzId is { } mbid)
+        {
+            <p class="source"><a href="https://musicbrainz.org/release/@mbid" rel="noopener noreferrer nofollow" target="_blank">MusicBrainz</a></p>
+        }
+    </div>
+</section>
+
+<div class="section-head">
+    <h2>@Ui.Number(Model.Summary.Scrobbles) scrobbles <span class="muted">· @Model.Period.Label()</span></h2>
+    <partial name="_RangeTabs" model="rangeTabs" />
+</div>
+
+<section class="card">
+    <h3>Listening activity</h3>
+    <partial name="_Activity" model="Model.Activity" />
+</section>
+
+<div class="grid-2 align-start">
+    <section class="card">
+        <h3>Tracks</h3>
+        <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Tracks, Model.Tracks)" />
+    </section>
+    <section class="card">
+        <h3>Scrobbles</h3>
+        <partial name="_ScrobbleTable" model="history" />
+        <partial name="_Pager" model="pager" />
+    </section>
+</div>

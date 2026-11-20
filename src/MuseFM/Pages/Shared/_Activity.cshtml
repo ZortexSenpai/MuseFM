@@ -1,0 +1,4 @@
+@model IReadOnlyList<ActivityBucket>
+@* Scrobbles over time, drawn as a single-series column chart. *@
+<partial name="_ColumnChart" model="@(new ChartModel("Scrobbles over time", "Period", [new ChartSeries("Scrobbles", "current")],
+    Model.Select(b => new ChartGroup(b.Label, b.Tooltip, [b.Count])).ToList()))" />

@@ -1,0 +1,30 @@
+@model ChartModel
+@* The table twin of a chart: every value without hovering. *@
+<details class="table-view">
+    <summary>Show as table</summary>
+    <div class="table-wrap">
+        <table class="list compact">
+            <thead>
+            <tr>
+                <th>@Model.Dimension</th>
+                @foreach (var series in Model.Series)
+                {
+                    <th class="num">@series.Name</th>
+                }
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var group in Model.Groups)
+            {
+                <tr>
+                    <td>@group.Title</td>
+                    @foreach (var value in group.Values)
+                    {
+                        <td class="num">@(value is { } v ? Ui.Number(v) : "—")</td>
+                    }
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</details>

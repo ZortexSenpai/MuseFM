@@ -1,0 +1,49 @@
+@model CatalogTableModel
+@using MuseFM.Pages.Admin
+<div class="table-wrap">
+    <table class="list">
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th class="num">Scrobbles</th>
+            <th class="num">Listeners</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var entry in Model.Entries)
+        {
+            <tr>
+                <td>
+                    <a class="title" href="@CatalogUrls.Entry(entry.Kind, entry.Id)">@entry.Name</a>
+                    @if (entry.Artists.Count > 0)
+                    {
+                        <span class="muted"> · @string.Join(", ", entry.Artists.Select(a => a.Name))</span>
+                    }
+                    @if (entry.MusicBrainzId is not null)
+                    {
+                        <span class="badge" title="MusicBrainz id @entry.MusicBrainzId">MBID</span>
+                    }
+                    <div class="sub">#@entry.Id</div>
+                </td>
+                <td class="num">@Ui.Number(entry.Scrobbles)</td>
+                <td class="num">@Ui.Number(entry.Listeners)</td>
+                <td class="actions">
+                    @if (Model.MergeFrom is { } source)
+                    {
+                        <form method="post" asp-page-handler="Merge" asp-route-kind="@CatalogUrls.Singular(entry.Kind)" asp-route-id="@source"
+                              data-confirm="@($"Merge “{Model.SourceName}” into “{entry.Name}”? This can't be undone, but the old name is kept as an alias.")" onsubmit="return confirm(this.dataset.confirm)">
+                            <input type="hidden" name="targetId" value="@entry.Id">
+                            <button type="submit" class="button small">Merge into this</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <a class="button small" href="@CatalogUrls.Entry(entry.Kind, entry.Id)">Edit</a>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>

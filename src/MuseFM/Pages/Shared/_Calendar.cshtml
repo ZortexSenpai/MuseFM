@@ -1,0 +1,60 @@
+@model ListeningYear
+@using System.Globalization
+@{
+    var max = Model.Days.Count == 0 ? 0 : Model.Days.Max(d => d.Count);
+    var weeks = Model.Days.Chunk(7).ToList();
+
+    // Month names above the week in which a month starts, at least three weeks apart so they never overlap.
+    var labels = new string?[weeks.Count];
+    var candidates = weeks.Select((week, w) => (w, Day: week.FirstOrDefault(d => d.Day.Day == 1)?.Day ?? (w == 0 ? week[0].Day : (DateOnly?)null)))
+        .Where(c => c.Day is not null).ToList();
+    var lastLabel = -3;
+    for (var i = 0; i < candidates.Count; i++)
+    {
+        var (w, day) = candidates[i];
+        var partialFirstWeek = w == 0 && day!.Value.Day != 1;
+        if (partialFirstWeek && i + 1 < candidates.Count && candidates[i + 1].w < 3) continue;
+        if (w - lastLabel < 3) continue;
+        labels[w] = day!.Value.ToString("MMM", CultureInfo.InvariantCulture);
+        lastLabel = w;
+    }
+}
+<div class="calendar-scroll">
+    <div class="calendar" role="img" aria-label="Scrobbles per day over the past year" style="--weeks:@weeks.Count">
+        <div class="cal-months" aria-hidden="true">
+            @foreach (var label in labels)
+            {
+                <span>@label</span>
+            }
+        </div>
+        <div class="cal-weekdays" aria-hidden="true">
+            @* Rows start on the viewer's first day of the week; Monday, Wednesday and Friday are labelled. *@
+            @for (var row = 0; row < 7; row++)
+            {
+                var day = Model.Days.Count > row ? Model.Days[row].Day.DayOfWeek : (DayOfWeek)row;
+                <span>@(day is DayOfWeek.Monday or DayOfWeek.Wednesday or DayOfWeek.Friday ? day.ToString()[..3] : "")</span>
+            }
+        </div>
+        <div class="cal-grid">
+            @foreach (var day in Model.Days)
+            {
+                <span class="cell l@(Ui.HeatLevel(day.Count, max))" data-tip="@Ui.Tip(Ui.Day(day.Day), Ui.Number(day.Count), "scrobbles")"></span>
+            }
+        </div>
+    </div>
+</div>
+<partial name="_HeatScale" />
+<details class="table-view">
+    <summary>Show as table</summary>
+    <div class="table-wrap table-scroll">
+        <table class="list compact">
+            <thead><tr><th>Day</th><th class="num">Scrobbles</th></tr></thead>
+            <tbody>
+            @foreach (var day in Model.Days.Reverse())
+            {
+                <tr><td>@Ui.Day(day.Day)</td><td class="num">@Ui.Number(day.Count)</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</details>

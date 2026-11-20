@@ -1,0 +1,44 @@
+@page "/admin/catalog"
+@model MuseFM.Pages.Admin.CatalogModel
+@using MuseFM.Pages.Admin
+@{
+    ViewData["Title"] = "Catalog";
+    ViewData["Tab"] = "catalog";
+}
+<partial name="_AdminNav" />
+
+<p class="muted">
+    Artists, albums and tracks are shared by all users. Rename an entry to fix its spelling, or merge a duplicate into the
+    entry it belongs to: scrobbles and loves move over, and the old name is kept as an alias so that scrobbles that still use
+    it land in the right place.
+</p>
+
+<form method="get" class="inline-form">
+    <select name="kind" aria-label="Look for">
+        @foreach (var kind in Enum.GetValues<ChartKind>())
+        {
+            <option value="@kind.ToString().ToLowerInvariant()" selected="@(kind == Model.Kind)">@kind</option>
+        }
+    </select>
+    <input type="search" name="q" value="@Model.Query" placeholder="Name or id" aria-label="Name or id" autofocus>
+    <button type="submit" class="button primary">Search</button>
+</form>
+
+@if (Model.Query.Length == 0)
+{
+    <div class="card empty-state"><p class="muted">Search for a name to edit it.</p></div>
+}
+else if (Model.Results.Count == 0)
+{
+    <div class="card empty-state"><p class="muted">No @Model.Kind.ToString().ToLowerInvariant() matching “@Model.Query”.</p></div>
+}
+else
+{
+    <section class="card">
+        <partial name="_CatalogTable" model="@(new CatalogTableModel(Model.Results, null, null))" />
+        @if (Model.Results.Count == CatalogEditor.SearchLimit)
+        {
+            <p class="hint">Showing the first @CatalogEditor.SearchLimit matches. Refine your search to narrow it down.</p>
+        }
+    </section>
+}

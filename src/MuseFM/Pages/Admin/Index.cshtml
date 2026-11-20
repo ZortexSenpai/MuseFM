@@ -1,0 +1,60 @@
+@page "/admin"
+@model MuseFM.Pages.Admin.IndexModel
+@{
+    ViewData["Title"] = "Admin";
+    ViewData["Tab"] = "users";
+}
+<partial name="_AdminNav" />
+
+@if (Model.StatusMessage is not null)
+{
+    <div class="alert @(Model.StatusIsError ? "error" : "success")">@Model.StatusMessage</div>
+}
+
+<div class="tiles">
+    <div class="tile"><span class="tile-value">@Ui.Number(Model.Rows.Count)</span><span class="tile-label">Users</span></div>
+    <div class="tile"><span class="tile-value">@Ui.Number(Model.Rows.Sum(r => r.Scrobbles))</span><span class="tile-label">Scrobbles</span></div>
+    <div class="tile"><span class="tile-value">@(Model.RegistrationEnabled ? "Open" : "Closed")</span><span class="tile-label">Registration</span></div>
+    <div class="tile"><span class="tile-value">@(Model.LastFmImportEnabled ? "On" : "Off")</span><span class="tile-label">Last.fm import</span></div>
+</div>
+<p class="hint">Registration is configured with the <code>MuseFM__AllowRegistration</code> environment variable; while it is closed, add accounts with <em>Add user</em>. Last.fm import needs a Last.fm API key, set under <a href="/admin/metadata">Metadata</a> or with <code>MuseFM__LastFmApiKey</code>.</p>
+
+<section class="card">
+    <div class="card-head">
+        <h2>Users</h2>
+        <a class="button small primary" href="/admin/users/new">Add user</a>
+    </div>
+    <div class="table-wrap">
+        <table class="list">
+            <thead>
+            <tr><th>User</th><th class="num">Scrobbles</th><th class="num">Last scrobble</th><th>Joined</th><th>Role</th><th></th></tr>
+            </thead>
+            <tbody>
+            @foreach (var row in Model.Rows)
+            {
+                <tr>
+                    <td>
+                        <a class="title" href="/admin/users/@row.Id">@row.UserName</a>
+                        @if (!row.IsPublic)
+                        {
+                            <span class="badge">Private</span>
+                        }
+                        @if (row.IsSelf)
+                        {
+                            <span class="badge accent">You</span>
+                        }
+                    </td>
+                    <td class="num">@Ui.Number(row.Scrobbles)</td>
+                    <td class="num muted">@(row.LastScrobble is { } last ? Ui.Relative(last, TimeZoneInfo.Utc) : "—")</td>
+                    <td class="muted">@Ui.Date(row.CreatedAt, TimeZoneInfo.Utc)</td>
+                    <td>@(row.IsAdmin ? "Admin" : "User")</td>
+                    <td class="actions">
+                        <a class="button small" href="@Ui.UserUrl(row.UserName)">Profile</a>
+                        <a class="button small" href="/admin/users/@row.Id">Edit</a>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

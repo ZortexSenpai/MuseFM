@@ -1,0 +1,16 @@
+@page "/u/{username}/scrobbles"
+@model MuseFM.Pages.Users.ScrobblesModel
+@{
+    var header = Model.Header("scrobbles");
+    ViewData["Title"] = $"{Model.UserName} · Scrobbles";
+    var table = new ScrobbleTableModel(Model.UserName, Model.Zone, Model.History.Items, Model.IsOwner, Model.History.Page, Model.Loved, Model.IsOwner);
+    var pager = new PagerModel(Model.History.Page, Model.History.TotalPages, p => $"{Model.ProfileUrl}/scrobbles?p={p}");
+}
+<partial name="_UserHeader" model="header" />
+<div class="section-head">
+    <h2>@Ui.Number(Model.History.Total) scrobbles</h2>
+</div>
+<section class="card">
+    <partial name="_ScrobbleTable" model="table" />
+    <partial name="_Pager" model="pager" />
+</section>

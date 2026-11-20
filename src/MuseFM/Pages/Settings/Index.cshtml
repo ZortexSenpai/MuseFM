@@ -1,0 +1,103 @@
+@page "/settings"
+@model MuseFM.Pages.Settings.IndexModel
+@{
+    ViewData["Title"] = "Settings";
+    ViewData["Tab"] = "profile";
+}
+<partial name="_SettingsNav" />
+
+@if (Model.StatusMessage is not null)
+{
+    <div class="alert @(Model.StatusIsError ? "error" : "success")">@Model.StatusMessage</div>
+}
+
+<section class="card">
+    <h2>Picture and banner</h2>
+    <partial name="_ProfileImagesPreview" model="Model.Me" />
+    <div class="form-grid image-forms">
+        <form method="post" asp-page-handler="Image" enctype="multipart/form-data">
+            <input type="hidden" name="kind" value="@ProfileImageKind.Avatar">
+            <label class="field">
+                <span>Profile picture</span>
+                <input type="file" name="file" accept="@ProfileImages.Accept" required>
+                <span class="hint">On your profile and next to your name in lists. A square image works best.</span>
+            </label>
+            <div class="button-row">
+                <button type="submit" class="button primary">Upload picture</button>
+                @if (Model.Me.AvatarFile is not null)
+                {
+                    <button type="submit" class="button" asp-page-handler="RemoveImage" formnovalidate>Remove</button>
+                }
+            </div>
+        </form>
+        <form method="post" asp-page-handler="Image" enctype="multipart/form-data">
+            <input type="hidden" name="kind" value="@ProfileImageKind.Banner">
+            <label class="field">
+                <span>Banner</span>
+                <input type="file" name="file" accept="@ProfileImages.Accept" required>
+                <span class="hint">Across the top of your profile. A wide image, about 1500 × 400 pixels; it is cropped to fit, keeping the middle.</span>
+            </label>
+            <div class="button-row">
+                <button type="submit" class="button primary">Upload banner</button>
+                @if (Model.Me.BannerFile is not null)
+                {
+                    <button type="submit" class="button" asp-page-handler="RemoveImage" formnovalidate>Remove</button>
+                }
+            </div>
+        </form>
+    </div>
+    <p class="hint">JPEG, PNG, GIF or WebP, up to @ProfileImages.MaxMegabytes MB each.</p>
+</section>
+
+<section class="card">
+    <h2>Profile</h2>
+    <form method="post" asp-page-handler="Profile">
+        <label class="check">
+            <input asp-for="Profile.IsPublic">
+            <span>Public profile <span class="muted">— your stats can be viewed by anyone and you appear in user search</span></span>
+        </label>
+        <label class="field narrow">
+            <span>Time zone</span>
+            <select asp-for="Profile.TimeZoneId" asp-items="Model.TimeZoneItems"></select>
+            <span class="hint">Used for daily charts and the times shown on your profile.</span>
+            <span asp-validation-for="Profile.TimeZoneId" class="field-error"></span>
+        </label>
+        <button type="submit" class="button primary">Save profile</button>
+    </form>
+</section>
+
+<section class="card">
+    <h2>Change password</h2>
+    @if (Model.PasswordErrors.Count > 0)
+    {
+        <div class="alert error"><ul>@foreach (var e in Model.PasswordErrors) { <li>@e</li> }</ul></div>
+    }
+    <form method="post" asp-page-handler="Password" class="narrow">
+        <label class="field">
+            <span>Current password</span>
+            <input asp-for="Password.CurrentPassword" autocomplete="current-password">
+        </label>
+        <label class="field">
+            <span>New password</span>
+            <input asp-for="Password.NewPassword" autocomplete="new-password">
+        </label>
+        <label class="field">
+            <span>Confirm new password</span>
+            <input asp-for="Password.ConfirmPassword" autocomplete="new-password">
+        </label>
+        <button type="submit" class="button primary">Change password</button>
+    </form>
+</section>
+
+<section class="card danger-zone">
+    <h2>Delete account</h2>
+    <p class="muted">Permanently deletes your account, all of your scrobbles and API keys. Export your data first if you want to keep it.</p>
+    @if (Model.DeleteError is not null)
+    {
+        <div class="alert error">@Model.DeleteError</div>
+    }
+    <form method="post" asp-page-handler="Delete" class="inline-form" onsubmit="return confirm('Really delete your account and all scrobbles? This cannot be undone.')">
+        <input type="password" name="confirmPassword" placeholder="Your password" autocomplete="current-password" required aria-label="Your password">
+        <button type="submit" class="button danger">Delete my account</button>
+    </form>
+</section>

@@ -1,0 +1,92 @@
+@page "/u/{username}/artist/{id:int}"
+@model MuseFM.Pages.Users.ArtistModel
+@{
+    var header = Model.Header("artists");
+    ViewData["Title"] = $"{Model.Name} · {Model.UserName}";
+    var rangeTabs = new RangeTabsModel(Model.Period, $"{Model.ProfileUrl}/artist/{Model.ArtistId}", Model.FirstYear, Model.Zone);
+}
+<partial name="_UserHeader" model="header" />
+
+<section class="artist-head@(Model.ShowPhoto ? " with-photo" : "")" style="@(Model.ShowPhoto ? $"--art:url(/media/artist/{Model.ArtistId})" : null)">
+    @if (Model.ShowPhoto)
+    {
+        <div class="artist-photo" aria-hidden="true">
+            <span>@Ui.Initial(Model.Name)</span>
+            <img src="/media/artist/@Model.ArtistId" alt="">
+        </div>
+    }
+    <div class="artist-text">
+        <p class="eyebrow">
+            Artist
+            @if (User.IsInRole(Roles.Admin))
+            {
+                <a class="eyebrow-link" href="/admin/catalog/artist/@Model.ArtistId">Edit</a>
+            }
+        </p>
+        <h2 class="artist-name">@Model.Name</h2>
+        <p class="muted">
+            @Ui.Number(Model.Summary.AllTimeScrobbles) scrobbles · first @Ui.Date(Model.Summary.FirstListen, Model.Zone) · last @Ui.Relative(Model.Summary.LastListen, Model.Zone)
+        </p>
+        @if (Model.Bio.Count > 0)
+        {
+            <div class="bio">
+                <p>@Model.Bio[0]</p>
+                @if (Model.Bio.Count > 1)
+                {
+                    <details>
+                        <summary>Read more</summary>
+                        @foreach (var paragraph in Model.Bio.Skip(1))
+                        {
+                            <p>@paragraph</p>
+                        }
+                    </details>
+                }
+            </div>
+        }
+        @if (Model.Info is { } info && (info.BioSource is not null || info.ImageSource is not null || info.MusicBrainzId is not null))
+        {
+            <p class="source">
+                @if (info.BioSource is not null)
+                {
+                    <span>Biography: @if (info.BioUrl is not null)
+                        {
+                            <a href="@info.BioUrl" rel="noopener noreferrer nofollow" target="_blank">@info.BioSource</a>
+                        }
+                        else
+                        {
+                            @info.BioSource
+                        }</span>
+                }
+                @if (info.ImageSource is not null)
+                {
+                    <span>Photo: @info.ImageSource</span>
+                }
+                @if (info.MusicBrainzId is not null)
+                {
+                    <a href="https://musicbrainz.org/artist/@info.MusicBrainzId" rel="noopener noreferrer nofollow" target="_blank">MusicBrainz</a>
+                }
+            </p>
+        }
+    </div>
+</section>
+
+<div class="section-head">
+    <h2>@Ui.Number(Model.Summary.Scrobbles) scrobbles <span class="muted">· @Model.Period.Label()</span></h2>
+    <partial name="_RangeTabs" model="rangeTabs" />
+</div>
+
+<section class="card">
+    <h3>Listening activity</h3>
+    <partial name="_Activity" model="Model.Activity" />
+</section>
+
+<div class="grid-2">
+    <section class="card">
+        <h3>Top tracks</h3>
+        <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Tracks, Model.TopTracks)" />
+    </section>
+    <section class="card">
+        <h3>Top albums</h3>
+        <partial name="_TopList" model="new TopListModel(Model.UserName, ChartKind.Albums, Model.TopAlbums)" />
+    </section>
+</div>

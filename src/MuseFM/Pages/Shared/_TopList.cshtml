@@ -1,0 +1,49 @@
+@model TopListModel
+@inject MetadataService Metadata
+@{
+    var max = Model.Entries.Count > 0 ? Model.Entries.Max(e => e.Count) : 1;
+    var url = Ui.UserUrl(Model.UserName);
+    // Tracks show the cover of the album they are most often scrobbled with.
+    var thumbs = Metadata.Enabled && ViewerPreferences.Current.ShowArtwork;
+    var media = Model.Kind switch
+    {
+        ChartKind.Artists => "artist",
+        ChartKind.Albums => "album",
+        _ => "track",
+    };
+}
+@if (Model.Entries.Count == 0)
+{
+    <p class="empty-note">Nothing here yet.</p>
+}
+else
+{
+    @* On a chart's first page, number one is set larger than the rest. *@
+    <ol class="toplist@(thumbs ? " with-thumbs" : "")@(Model.Entries[0].Rank == 1 && Model.Entries.Count > 1 ? " has-lead" : "")">
+        @foreach (var entry in Model.Entries)
+        {
+            <li>
+                <span class="rank">@entry.Rank</span>
+                @if (thumbs)
+                {
+                    <span class="thumb@(Model.Kind == ChartKind.Artists ? " round" : "")"><img src="/media/@media/@entry.Id" alt="" loading="lazy" decoding="async"></span>
+                }
+                <div class="bar-cell">
+                    <span class="bar" style="width:@Ui.Percent(entry.Count, max)"></span>
+                    <span class="bar-text">
+                        <a class="title" href="@(url)/@(media)/@entry.Id">@entry.Title</a>
+                        @if (Model.Kind != ChartKind.Artists)
+                        {
+                            <span class="muted"><span class="sep"> · </span>@Ui.ArtistLinks(Model.UserName, entry.Artists)</span>
+                        }
+                        @if (Model.Notes?.GetValueOrDefault(entry.Id) is { } note)
+                        {
+                            <span class="muted"><span class="sep"> · </span>@note</span>
+                        }
+                    </span>
+                </div>
+                <span class="count">@Ui.Number(entry.Count)</span>
+            </li>
+        }
+    </ol>
+}
