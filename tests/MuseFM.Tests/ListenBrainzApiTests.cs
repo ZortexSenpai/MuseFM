@@ -93,6 +93,34 @@ public class ListenBrainzApiTests : IClassFixture<MuseFmFactory>
     }
 
     [Fact]
+    public async Task Listens_BetweenMinAndMaxTs_AreATimeRange()
+    {
+        var (_, token) = await _factory.CreateUserAsync("lb-range");
+        var client = _factory.CreateTokenClient(token);
+        var times = new[] { Ago(40), Ago(30), Ago(20), Ago(10) };
+        var import = await client.PostAsJsonAsync("/apis/listenbrainz/1/submit-listens", new
+        {
+            listen_type = "import",
+            payload = times.Select((t, i) => Listen(t, "Bonobo", $"Track {i}")).ToArray(),
+        });
+        Assert.Equal(HttpStatusCode.OK, import.StatusCode);
+
+        // What multi-scrobbler asks before scrobbling: is there already a listen around this time?
+        var range = await client.GetFromJsonAsync<JsonElement>(
+            $"/apis/listenbrainz/1/user/lb-range/listens?min_ts={times[0]}&max_ts={times[3]}");
+        var listens = range.GetProperty("payload").GetProperty("listens");
+        Assert.Equal(["Track 2", "Track 1"],
+            listens.EnumerateArray().Select(l => l.GetProperty("track_metadata").GetProperty("track_name").GetString()));
+
+        var empty = await client.GetFromJsonAsync<JsonElement>(
+            $"/apis/listenbrainz/1/user/lb-range/listens?min_ts={times[3]}&max_ts={times[3] + 600}");
+        Assert.Equal(0, empty.GetProperty("payload").GetProperty("count").GetInt32());
+
+        var backwards = await client.GetAsync($"/apis/listenbrainz/1/user/lb-range/listens?min_ts={times[3]}&max_ts={times[0]}");
+        Assert.Equal(HttpStatusCode.BadRequest, backwards.StatusCode);
+    }
+
+    [Fact]
     public async Task SubmitListens_RejectsMissingMetadata()
     {
         var (_, token) = await _factory.CreateUserAsync("lb-invalid");

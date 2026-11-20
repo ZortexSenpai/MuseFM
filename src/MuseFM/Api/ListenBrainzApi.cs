@@ -116,8 +116,9 @@ public static class ListenBrainzApi
     {
         var user = await FindVisibleUserAsync(username, request, users, keys, ct);
         if (user is null) return Error(404, $"Cannot find user: {username}");
-        if (max_ts is not null && min_ts is not null)
-            return Error(400, "You may only specify max_ts or min_ts, not both.");
+        // Both together ask for a time range, newest first; multi-scrobbler checks for an existing scrobble this way.
+        if (max_ts is not null && min_ts is not null && min_ts >= max_ts)
+            return Error(400, "min_ts should be less than max_ts");
 
         var rows = await stats.ListensAsync(user.Id, Math.Clamp(count ?? DefaultCount, 1, MaxCount), max_ts, min_ts, ct);
         var latest = await stats.LastScrobbleAsync(user.Id, ct);

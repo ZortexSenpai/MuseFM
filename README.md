@@ -53,6 +53,7 @@ Environment variables (double underscore = config section):
 | `MuseFM__LastFmApiKey` | *(empty)* | Last.fm API key for “Import from Last.fm” and the Last.fm metadata connector. Get a free key at https://www.last.fm/api/account/create. A key saved under *Admin → Metadata* takes precedence. |
 | `MuseFM__ImportFromPrivateAddresses` | `false` | Importing from a Maloja server on a private or local address (`http://maloja:42010`, `192.168.…`) is for admins only, so that an account is not a way into the server's network; everyone else can import from servers on the public internet. Set to `true` when everyone with an account is trusted. |
 | `MuseFM__TrustedProxies` | *(empty)* | The reverse proxies whose `X-Forwarded-*` headers are believed: IP addresses or networks, separated by commas, e.g. `172.18.0.0/16` for a Docker network. Empty believes them from anyone; set it whenever MuseFM can also be reached without going through the proxy. |
+| `MuseFM__NowPlayingTimeoutSeconds` | `90` | How long “now playing” stays up when the client sent no track length. Clients cannot report that playback stopped, so this is how soon a stopped track disappears; raise it for a client that sends “now playing” only once per track and without a length. With a length, the track is shown for that long. |
 | `MuseFM__DataDirectory` | `/data` (in Docker) | Where the SQLite database and keys are stored. |
 | `ASPNETCORE_HTTP_PORTS` | `8080` | Port inside the container. |
 

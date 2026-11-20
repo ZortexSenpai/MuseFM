@@ -30,6 +30,13 @@ public sealed class MuseFmOptions
     /// can reach MuseFM.
     /// </summary>
     public string? TrustedProxies { get; set; }
+
+    /// <summary>
+    /// How long a "now playing" update that carries no track length is shown. Clients cannot report that playback
+    /// stopped, so this is how soon a stopped track disappears; clients that repeat the update while playing
+    /// (multi-scrobbler: every 30 seconds) keep it alive. Updates with a track length are shown for that length.
+    /// </summary>
+    public int NowPlayingTimeoutSeconds { get; set; } = 90;
 }
 
 public static class Roles

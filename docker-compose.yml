@@ -20,6 +20,8 @@ services:
       MuseFM__LastFmApiKey: ""
       # Optional: the reverse proxy whose X-Forwarded-* headers are believed (address or network), e.g. "172.18.0.0/16".
       # MuseFM__TrustedProxies: ""
+      # Optional: seconds "now playing" stays up when the client sent no track length (default 90).
+      # MuseFM__NowPlayingTimeoutSeconds: "90"
       # Default time zone for new profiles is UTC; each user can change theirs in Settings.
     volumes:
       - musefm-data:/data

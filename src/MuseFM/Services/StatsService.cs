@@ -232,7 +232,10 @@ public sealed class StatsService(AppDbContext db)
     public async Task<ScrobbleRow?> NthAsync(string userId, int number, CancellationToken ct = default) =>
         (await ToRowsAsync(Scrobbles(userId, null).OrderBy(s => s.ListenedAt).Skip(number - 1).Take(1), ct)).FirstOrDefault();
 
-    /// <summary>ListenBrainz-style paging: newest first, or oldest-after-min_ts when only min_ts is given.</summary>
+    /// <summary>
+    /// ListenBrainz-style paging: newest first, or oldest-after-min_ts when only min_ts is given. Both bounds are
+    /// exclusive; together they select a time range.
+    /// </summary>
     public async Task<List<ScrobbleRow>> ListensAsync(string userId, int count, long? maxTs, long? minTs, CancellationToken ct = default)
     {
         var query = Scrobbles(userId, null);
