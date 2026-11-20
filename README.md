@@ -3,6 +3,18 @@
 Self-hosted listening statistics, in the spirit of Last.fm and Maloja. Music players send scrobbles to MuseFM through
 **ListenBrainz**- or **Last.fm**-compatible APIs, and every user gets charts, activity graphs and their full history.
 
+## Screenshots
+<img width="2239" height="1321" alt="image" src="https://github.com/user-attachments/assets/3be3aa56-41e5-43e7-86fa-9a380c32ef5b" />
+<img width="2231" height="1328" alt="image" src="https://github.com/user-attachments/assets/6ebb4d6b-be23-43b5-ae26-d297fd539799" />
+<img width="2243" height="1251" alt="image" src="https://github.com/user-attachments/assets/6f4a8701-7ff7-4f34-9ad6-e4d8122ec00a" />
+<img width="2258" height="1339" alt="image" src="https://github.com/user-attachments/assets/afd156c3-2c62-4944-81d9-a0e88e86beb7" />
+<img width="2250" height="1333" alt="image" src="https://github.com/user-attachments/assets/84cd8faa-3fb8-416f-b12d-9214afe8fb72" />
+<img width="2253" height="1323" alt="image" src="https://github.com/user-attachments/assets/9bbe67df-bcf9-439d-be13-16eaf9845dfb" />
+<img width="2256" height="1336" alt="image" src="https://github.com/user-attachments/assets/4dd2f9de-0eae-4eaa-87ea-3ceb2f580cb6" />
+
+
+
+## Features
 - User accounts (first account becomes admin, registration can be closed); admins create, edit and delete accounts
 - Per-user preferences: eight themes (system, light, dark, newsprint, kraft, midnight, forest, black), six accent colors, 12/24-hour clock, first day of the week, artwork on/off
   and the default period (Settings → Preferences)
