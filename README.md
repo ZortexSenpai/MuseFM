@@ -32,8 +32,11 @@ from other servers.
 ## Quick start
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
+
+This pulls the published image, `ghcr.io/zortexsenpai/musefm`. Update with `docker compose pull && docker compose up -d`.
+To run your own checkout instead, replace the `image:` line in `docker-compose.yml` with `build: .` and add `--build`.
 
 Open http://localhost:8080 and sign up. The first account is the administrator.
 
@@ -260,6 +263,22 @@ dotnet ef migrations add <Name> -p src/MuseFM -o Data/Migrations
 ```
 
 Migrations are applied automatically on startup.
+
+### Releases
+
+Every push to `main` runs the tests and, if the commits since the last `vX.Y.Z` tag call for it, publishes
+`ghcr.io/zortexsenpai/musefm` as `X.Y.Z`, `X.Y` and `latest`, then tags the commit and creates a GitHub release. The
+version follows [Conventional Commits](https://www.conventionalcommits.org):
+
+| Commit                                                  | Bump  |
+|---------------------------------------------------------|-------|
+| `feat!: …`, or a `BREAKING CHANGE: …` footer            | major |
+| `feat: …`                                               | minor |
+| `fix: …`, `perf: …`, `revert: …`                        | patch |
+| anything else (`docs`, `chore`, `refactor`, `test`, …)  | none, nothing is published |
+
+Pull requests run the tests and build the image without pushing it; the run's summary says which version merging
+would publish. The rules live in `.github/scripts/next-version.sh`.
 
 ```
 src/MuseFM

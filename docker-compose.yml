@@ -1,7 +1,12 @@
 services:
   musefm:
+    # Local Build:
     build: .
-    image: musefm:latest
+    image: musefm:latest 
+    
+    # Prebuilt image:
+    # image: ghcr.io/zortexsenpai/musefm:latest
+
     container_name: musefm
     restart: unless-stopped
     ports:

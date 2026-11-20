@@ -5,7 +5,9 @@ WORKDIR /src
 COPY src/MuseFM/MuseFM.csproj src/MuseFM/
 RUN dotnet restore src/MuseFM/MuseFM.csproj
 COPY src/MuseFM/ src/MuseFM/
-RUN dotnet publish src/MuseFM/MuseFM.csproj -c Release -o /app --no-restore /p:UseAppHost=false
+# Set by the pipelines (.github/workflows); a local build is 0.0.0-dev.
+ARG VERSION=0.0.0-dev
+RUN dotnet publish src/MuseFM/MuseFM.csproj -c Release -o /app --no-restore /p:UseAppHost=false /p:Version="$VERSION"
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
