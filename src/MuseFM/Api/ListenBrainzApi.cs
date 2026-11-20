@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 using MuseFM.Data.Entities;
 using MuseFM.Services;
@@ -16,6 +17,15 @@ public static class ListenBrainzApi
     public const string BasePath = "/apis/listenbrainz";
     private const int DefaultCount = 25;
     private const int MaxCount = 1000;
+
+    /// <summary>
+    /// Listen responses leave out values we don't have, like ListenBrainz does, rather than sending null: clients such as
+    /// multi-scrobbler destructure fields with JS defaults (<c>artist_mbids = []</c>), which only apply to missing keys.
+    /// </summary>
+    private static readonly JsonSerializerOptions ListenJson = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
 
     public static IEndpointRouteBuilder MapListenBrainzApi(this IEndpointRouteBuilder app)
     {
@@ -134,13 +144,12 @@ public static class ListenBrainzApi
                 {
                     listened_at = r.ListenedAt,
                     inserted_at = r.ListenedAt,
-                    recording_msid = (string?)null,
                     user_name = user.UserName,
                     track_metadata = TrackMetadata(r.Title, r.Artists.Select(a => a.Name).ToList(), r.Album, r.LengthSeconds, r.Origin,
                         r.TrackMbid, r.AlbumMbid, ArtistMbids(r.Artists, artistMbids)),
                 }),
             },
-        });
+        }, ListenJson);
     }
 
     private static async Task<IResult> GetListenCountAsync(
@@ -171,7 +180,7 @@ public static class ListenBrainzApi
         return Results.Json(new
         {
             payload = new { count = listens.Length, playing_now = true, user_id = user.UserName, listens },
-        });
+        }, ListenJson);
     }
 
     /// <summary>Artist MBIDs in credit order, or null unless every artist has one (so the list lines up with artist_names).</summary>

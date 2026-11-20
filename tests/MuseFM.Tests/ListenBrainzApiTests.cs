@@ -121,6 +121,31 @@ public class ListenBrainzApiTests : IClassFixture<MuseFmFactory>
     }
 
     [Fact]
+    public async Task Listens_OmitMissingValuesInsteadOfSendingNull()
+    {
+        // multi-scrobbler destructures e.g. `artist_mbids = []`; a JS default only covers undefined, so null crashes it.
+        var (_, token) = await _factory.CreateUserAsync("lb-nulls");
+        var client = _factory.CreateTokenClient(token);
+        var import = await client.PostAsJsonAsync("/apis/listenbrainz/1/submit-listens", new
+        {
+            listen_type = "import",
+            payload = new[] { Listen(Ago(5), "Rameses B • Ida", "Overcome", info: new { artist_names = new[] { "Rameses B", "Ida" } }) },
+        });
+        Assert.Equal(HttpStatusCode.OK, import.StatusCode);
+        var playingNow = await client.PostAsJsonAsync("/apis/listenbrainz/1/submit-listens",
+            new { listen_type = "playing_now", payload = new[] { new { track_metadata = new { artist_name = "Ida", track_name = "Overcome" } } } });
+        Assert.Equal(HttpStatusCode.OK, playingNow.StatusCode);
+
+        var listens = await client.GetFromJsonAsync<JsonElement>("/apis/listenbrainz/1/user/lb-nulls/listens");
+        var playing = await client.GetFromJsonAsync<JsonElement>("/apis/listenbrainz/1/user/lb-nulls/playing-now");
+        foreach (var metadata in new[] { listens, playing }.Select(r => r.GetProperty("payload").GetProperty("listens")[0].GetProperty("track_metadata")))
+        {
+            Assert.DoesNotContain(metadata.EnumerateObject(), p => p.Value.ValueKind == JsonValueKind.Null);
+            Assert.DoesNotContain(metadata.GetProperty("additional_info").EnumerateObject(), p => p.Value.ValueKind == JsonValueKind.Null);
+        }
+    }
+
+    [Fact]
     public async Task SubmitListens_RejectsMissingMetadata()
     {
         var (_, token) = await _factory.CreateUserAsync("lb-invalid");
