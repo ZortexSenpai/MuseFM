@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 
 namespace MuseFM.Services;
 
+/// <param name="Input">What the client sent, to find the track in the catalog the way its scrobble will be matched.</param>
 public sealed record NowPlaying(
     string Title,
     IReadOnlyList<string> Artists,
@@ -10,7 +11,8 @@ public sealed record NowPlaying(
     int? LengthSeconds,
     DateTimeOffset StartedAt,
     DateTimeOffset ExpiresAt,
-    string? Origin);
+    string? Origin,
+    ScrobbleInput Input);
 
 /// <summary>
 /// In-memory "now playing" state per user. Neither scrobbling protocol can say that playback stopped, so an entry
@@ -35,7 +37,7 @@ public sealed class NowPlayingStore(IOptions<MuseFmOptions> options, TimeProvide
         var length = input.LengthSeconds is > 0 ? TimeSpan.FromSeconds(input.LengthSeconds.Value) : _timeout;
         if (length > MaxLength) length = MaxLength;
         var album = TextKey.Clean(input.Album);
-        _entries[userId] = new NowPlaying(title, artists, album.Length == 0 ? null : album, input.LengthSeconds, now, now + length, input.Origin);
+        _entries[userId] = new NowPlaying(title, artists, album.Length == 0 ? null : album, input.LengthSeconds, now, now + length, input.Origin, input);
         return true;
     }
 

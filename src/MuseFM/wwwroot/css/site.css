@@ -543,7 +543,7 @@ input[type=file] { padding: 7px; }
 a.title { color: var(--text); }
 .eq.small { height: 14px; gap: 2px; }
 .eq.small i { width: 3px; }
-.playing-now { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 16px; }
+.playing-now { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 0 16px; }
 table.list td.feed-user { width: 1%; white-space: nowrap; }
 /* Search results: one ticket per person. */
 .people-grid { list-style: none; margin: 0 0 24px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
@@ -582,12 +582,18 @@ table.list td.feed-user { width: 1%; white-space: nowrap; }
 .obsession-form label { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
 .obsession-form select { padding: 5px 10px; font-size: .84rem; }
 
-/* Now playing: an inked strip with a turning record. */
+/* Now playing: an inked strip with the cover and a turning record. */
 .nowplaying { position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px; border: 0; padding: 13px 96px 13px 18px; margin-bottom: 30px; background: var(--block); color: var(--paper); }
-.nowplaying .label { font-stretch: 116%; font-size: .64rem; text-transform: uppercase; letter-spacing: .12em; color: var(--pop-2); font-weight: 800; }
+.nowplaying .thumb { width: 64px; height: 64px; font-size: 1.4rem; background: rgba(243, 238, 227, .1); color: rgba(243, 238, 227, .55); box-shadow: 0 0 0 1.5px rgba(243, 238, 227, .14); }
+.nowplaying a.thumb:hover { text-decoration: none; }
+.nowplaying-text { min-width: 0; overflow-wrap: anywhere; }
+.nowplaying .label { display: flex; align-items: center; gap: 7px; margin-bottom: 2px; font-stretch: 116%; font-size: .64rem; text-transform: uppercase; letter-spacing: .12em; color: var(--pop-2); font-weight: 800; }
 .nowplaying .label a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-.nowplaying .title { font-weight: 750; font-size: 1.05rem; }
+.nowplaying .label .eq { height: 10px; }
+.nowplaying .title { font-weight: 750; font-size: 1.05rem; color: inherit; }
+/* Links are a step brighter than the text around them: the accent is made for paper, not for ink. */
 .nowplaying .muted { color: rgba(243, 238, 227, .72); }
+.nowplaying .muted a { color: var(--paper); }
 .nowplaying::after { content: ""; position: absolute; right: 14px; top: 50%; width: 96px; height: 96px; margin-top: -48px; border-radius: 50%; background: radial-gradient(circle, var(--ink) 0 3%, transparent 3.6%), radial-gradient(circle, var(--pop-1) 0 19%, transparent 19.6%), var(--sheen), var(--grooves); box-shadow: 0 0 0 1.5px rgba(243, 238, 227, .14); animation: spin 3.2s linear infinite; }
 .eq { display: inline-flex; align-items: flex-end; gap: 3px; height: 24px; flex-shrink: 0; }
 .eq i { width: 5px; height: 30%; background: var(--pop-2); animation: eq 1s ease-in-out infinite; }
@@ -936,7 +942,8 @@ details.help summary { cursor: pointer; font-weight: 650; }
     .artist-head.with-photo { flex-direction: column; gap: 20px; }
     .artist-photo, .sleeve { width: 132px; }
     .artist-photo { height: 132px; font-size: 3.8rem; }
-    .nowplaying { padding-right: 78px; }
+    .nowplaying { gap: 12px; padding-right: 66px; }
+    .nowplaying .thumb { width: 52px; height: 52px; }
     .nowplaying::after { width: 80px; height: 80px; margin-top: -40px; right: -22px; }
     .friends li { grid-template-columns: minmax(0, 1fr) auto; }
     .friend-track { grid-column: 1 / -1; grid-row: 2; }

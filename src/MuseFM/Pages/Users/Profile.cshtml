@@ -55,21 +55,10 @@
     </section>
 }
 
-@if (Model.NowPlaying is { } np)
-{
-    <div class="card nowplaying">
-        <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>
-        <div>
-            <div class="label">Now playing</div>
-            <span class="title">@np.Title</span>
-            <span class="muted"> · @string.Join(", ", np.Artists)</span>
-            @if (np.Album is not null)
-            {
-                <span class="muted"> · @np.Album</span>
-            }
-        </div>
-    </div>
-}
+@* Always there, also while nothing plays: live.js fills it when a track starts. *@
+<div data-refresh="@(url)?handler=NowPlaying" data-refresh-seconds="@NowPlayingModel.RefreshSeconds">
+    <partial name="_NowPlaying" model="Model.NowPlaying" />
+</div>
 
 <div class="section-head">
     <h2>@Model.Period.Label()</h2>

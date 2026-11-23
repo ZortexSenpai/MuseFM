@@ -32,7 +32,7 @@ public sealed record TasteComparison(
     IReadOnlyList<ChartEntry> OnlyUser);
 
 /// <summary>Following other users, their listening in a feed, and comparing tastes.</summary>
-public sealed class SocialService(AppDbContext db, StatsService stats, NowPlayingStore nowPlaying)
+public sealed class SocialService(AppDbContext db, StatsService stats, NowPlayingStore nowPlaying, NowPlayingService playing)
 {
     private const int SharedCount = 25;
     private const int ExclusiveCount = 10;
@@ -112,18 +112,19 @@ public sealed class SocialService(AppDbContext db, StatsService stats, NowPlayin
         return new FeedPage(page, next);
     }
 
-    /// <summary>Now playing of the users the viewer follows.</summary>
-    public async Task<IReadOnlyList<(string UserName, NowPlaying Playing)>> PlayingNowAsync(string viewerId, bool isAdmin, CancellationToken ct = default)
+    /// <summary>Now playing of the users the viewer follows, the latest first.</summary>
+    public async Task<IReadOnlyList<PlayingTrack>> PlayingNowAsync(string viewerId, bool isAdmin, CancellationToken ct = default)
     {
         var users = await Visible(db.Follows.Where(f => f.FollowerId == viewerId).Select(f => f.Followee!), viewerId, isAdmin)
             .Select(u => new { u.Id, u.UserName })
             .ToListAsync(ct);
-        return users
-            .Select(u => (UserName: u.UserName!, Playing: nowPlaying.Get(u.Id)))
-            .Where(x => x.Playing is not null)
-            .OrderByDescending(x => x.Playing!.StartedAt)
-            .Select(x => (x.UserName, x.Playing!))
-            .ToList();
+        var tracks = new List<PlayingTrack>();
+        foreach (var user in users)
+        {
+            if (await playing.GetAsync(user.Id, user.UserName!, ct) is { } track) tracks.Add(track);
+        }
+
+        return tracks.OrderByDescending(t => t.Playing.StartedAt).ToList();
     }
 
     private static (long, long)? ParseCursor(string? cursor)

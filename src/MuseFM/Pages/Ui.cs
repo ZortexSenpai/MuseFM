@@ -193,7 +193,11 @@ public static class Ui
         return html;
     }
 
-    public static IHtmlContent ArtistLinks(string userName, IEnumerable<ArtistRef> artists)
+    public static IHtmlContent ArtistLinks(string userName, IEnumerable<ArtistRef> artists) =>
+        ArtistLinks(userName, artists.Select(a => new PlayingArtist(a.Name, a.Id)));
+
+    /// <summary>Artists of a track that is playing: those the user has no page for yet are plain text.</summary>
+    public static IHtmlContent ArtistLinks(string userName, IEnumerable<PlayingArtist> artists)
     {
         var html = new HtmlContentBuilder();
         var first = true;
@@ -201,6 +205,12 @@ public static class Ui
         {
             if (!first) html.AppendHtml(", ");
             first = false;
+            if (artist.Id is null)
+            {
+                html.Append(artist.Name);
+                continue;
+            }
+
             html.AppendHtml($"<a href=\"{HtmlEncoder.Default.Encode(UserUrl(userName))}/artist/{artist.Id}\">");
             html.Append(artist.Name);
             html.AppendHtml("</a>");

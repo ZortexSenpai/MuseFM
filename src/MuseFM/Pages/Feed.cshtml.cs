@@ -14,7 +14,7 @@ public sealed class FeedModel(UserManager<AppUser> users, SocialService social) 
     private const int PageSize = 50;
 
     public FeedPage Feed { get; private set; } = new([], null);
-    public IReadOnlyList<(string UserName, NowPlaying Playing)> PlayingNow { get; private set; } = [];
+    public NowPlayingModel PlayingNow { get; private set; } = new([], true);
     public bool Older { get; private set; }
     public TimeZoneInfo Zone { get; private set; } = TimeZoneInfo.Utc;
 
@@ -26,7 +26,15 @@ public sealed class FeedModel(UserManager<AppUser> users, SocialService social) 
         Zone = TimeZones.FindOrUtc(me.TimeZoneId);
         Older = before is not null;
         Feed = await social.FeedAsync(me.Id, isAdmin, before, PageSize, ct);
-        if (!Older) PlayingNow = await social.PlayingNowAsync(me.Id, isAdmin, ct);
+        if (!Older) PlayingNow = new(await social.PlayingNowAsync(me.Id, isAdmin, ct), true);
         return Page();
+    }
+
+    /// <summary>The "is listening to" cards on their own; the feed asks for them again every few seconds (live.js).</summary>
+    public async Task<IActionResult> OnGetPlayingNowAsync(CancellationToken ct)
+    {
+        if (await users.GetUserAsync(User) is not { } me) return Challenge();
+        Response.Headers.CacheControl = "no-store";
+        return Partial("_NowPlaying", new NowPlayingModel(await social.PlayingNowAsync(me.Id, User.IsInRole(Roles.Admin), ct), true));
     }
 }

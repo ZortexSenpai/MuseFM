@@ -6,7 +6,7 @@ using MuseFM.Services;
 namespace MuseFM.Pages.Users;
 
 public sealed class ProfileModel(
-    UserManager<AppUser> users, StatsService stats, FeedbackService feedback, ObsessionService obsessions, NowPlayingStore nowPlaying) : UserPageModel(users)
+    UserManager<AppUser> users, StatsService stats, FeedbackService feedback, ObsessionService obsessions, NowPlayingService nowPlaying) : UserPageModel(users)
 {
     private const int TopCount = 10;
     private const int RecentCount = 15;
@@ -26,7 +26,7 @@ public sealed class ProfileModel(
     public IReadOnlyList<ChartEntry> TopTracks { get; private set; } = [];
     public IReadOnlyList<ScrobbleRow> Recent { get; private set; } = [];
     public IReadOnlySet<int> Loved { get; private set; } = new HashSet<int>();
-    public NowPlaying? NowPlaying { get; private set; }
+    public NowPlayingModel NowPlaying { get; private set; } = new([], false);
     public CurrentObsession? Obsession { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(string username, string? range, CancellationToken ct)
@@ -35,7 +35,7 @@ public sealed class ProfileModel(
 
         Period = ResolvePeriod(range, ViewerPreferences.Current.DefaultRange ?? StatRange.Month);
         FirstYear = await stats.FirstYearAsync(Owner.Id, Zone, ct);
-        NowPlaying = nowPlaying.Get(Owner.Id);
+        NowPlaying = await NowPlayingAsync(ct);
         Obsession = await obsessions.CurrentAsync(Owner.Id, ct);
         Totals = await stats.GetTotalsAsync(Owner.Id, Period.Window, ct);
         if (Period.Previous(Zone) is { } previous)
@@ -54,4 +54,15 @@ public sealed class ProfileModel(
         AllTimeScrobbles = recent.Total;
         return Page();
     }
+
+    /// <summary>The "now playing" block on its own; the profile asks for it again every few seconds (live.js).</summary>
+    public async Task<IActionResult> OnGetNowPlayingAsync(string username, CancellationToken ct)
+    {
+        if (!await LoadOwnerAsync(username)) return NotFound();
+        Response.Headers.CacheControl = "no-store";
+        return Partial("_NowPlaying", await NowPlayingAsync(ct));
+    }
+
+    private async Task<NowPlayingModel> NowPlayingAsync(CancellationToken ct) =>
+        new(await nowPlaying.GetAsync(Owner.Id, UserName, ct) is { } track ? [track] : [], false);
 }

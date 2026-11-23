@@ -277,6 +277,10 @@ public sealed class StatsService(AppDbContext db)
         return new ListenSummary(count, span.Count, span.First, span.Last);
     }
 
+    /// <summary>Whether the user ever scrobbled the artist, album or track, i.e. whether their page for it exists.</summary>
+    public Task<bool> HasListenedAsync(string userId, StatSubject subject, CancellationToken ct = default) =>
+        Of(Scrobbles(userId, default), subject).AnyAsync(ct);
+
     public Task<string?> ArtistNameAsync(int id, CancellationToken ct = default) =>
         db.Artists.AsNoTracking().Where(a => a.Id == id).Select(a => a.Name).FirstOrDefaultAsync(ct);
 

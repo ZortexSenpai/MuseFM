@@ -54,6 +54,14 @@ public sealed record UserHeaderModel(
 public sealed record ScrobbleTableModel(
     string UserName, TimeZoneInfo Zone, IReadOnlyList<ScrobbleRow> Rows, bool CanDelete, int Page, IReadOnlySet<int>? Loved = null, bool CanLove = false);
 
+/// <summary>What people are playing, one card each. The cards are also served on their own, for live.js to refresh.</summary>
+/// <param name="ShowUser">Say who is listening (the feed); a profile already does.</param>
+public sealed record NowPlayingModel(IReadOnlyList<PlayingTrack> Tracks, bool ShowUser)
+{
+    /// <summary>How often the page asks for the cards again.</summary>
+    public const int RefreshSeconds = 10;
+}
+
 /// <summary>A heart that loves or unloves a track; a plain mark when the viewer can't change it.</summary>
 public sealed record LoveButtonModel(string UserName, int TrackId, bool Loved, bool CanLove, string ReturnUrl);
 

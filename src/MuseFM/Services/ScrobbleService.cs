@@ -34,6 +34,10 @@ public sealed record ScrobbleInput
     public IReadOnlyList<string>? ArtistMbids { get; init; }
 }
 
+/// <summary>What the catalog knows of a track that was not scrobbled (yet); null for what it has never seen.</summary>
+/// <param name="ArtistIds">One per artist, in the order <see cref="MetadataParser.Parse"/> gives them.</param>
+public sealed record CatalogMatch(int? TrackId, IReadOnlyList<int?> ArtistIds, int? AlbumId);
+
 /// <summary>A track to find in, or add to, the catalog without scrobbling it (loved tracks).</summary>
 public sealed record TrackRef(string Title, IReadOnlyList<string> Artists, string? MusicBrainzId = null);
 
@@ -119,6 +123,22 @@ public sealed class ScrobbleService(AppDbContext db, ScrobbleMetadataFetcher met
         }
     }
 
+    /// <summary>
+    /// Finds a track, its artists and its album the way a scrobble of it would be matched, without adding anything: for
+    /// what is playing now. Null without a title or an artist.
+    /// </summary>
+    public async Task<CatalogMatch?> FindAsync(ScrobbleInput input, CancellationToken ct = default)
+    {
+        if (Normalize(0, input) is not { } p) return null;
+        var artists = await ArtistsAsync(p.Track.Artists.Concat(p.AlbumArtists), create: false, ct);
+        var tracks = await TracksAsync([(p.Index, p.Track)], artists, create: false, ct);
+        var albums = await AlbumsAsync([p], artists, create: false, ct);
+        return new CatalogMatch(
+            tracks.GetValueOrDefault(p.Index)?.Id,
+            p.Track.Artists.Select(n => artists.TryGetValue(n.Key, out var artist) ? artist.Id : (int?)null).ToList(),
+            albums.GetValueOrDefault(p.Index)?.Id);
+    }
+
     private sealed record Name(string Display, string Key, string? Mbid = null);
 
     /// <param name="TitleKey">Matching key of the title; tracks with this key are candidates.</param>
@@ -137,9 +157,12 @@ public sealed class ScrobbleService(AppDbContext db, ScrobbleMetadataFetcher met
         int? DurationSeconds,
         string? Origin);
 
-    private static Prepared? Prepare(int index, ScrobbleInput input, long latestAllowed)
+    private static Prepared? Prepare(int index, ScrobbleInput input, long latestAllowed) =>
+        input.ListenedAt <= 0 || input.ListenedAt > latestAllowed ? null : Normalize(index, input);
+
+    /// <summary>The input's names cleaned up, with their matching keys; null without a title or an artist.</summary>
+    private static Prepared? Normalize(int index, ScrobbleInput input)
     {
-        if (input.ListenedAt <= 0 || input.ListenedAt > latestAllowed) return null;
         if (PrepareTrack(input.Title, input.Artists, input.ArtistMbids, input.TrackMbid) is not { } track) return null;
 
         string? album = TextKey.Clean(input.Album) is { Length: > 0 } a ? a : null;
@@ -232,7 +255,7 @@ public sealed class ScrobbleService(AppDbContext db, ScrobbleMetadataFetcher met
         var trackFor = await TracksAsync(toInsert.Select(p => (p.Index, p.Track)).ToList(), artists, create: true, ct);
         foreach (var p in toInsert)
             trackFor[p.Index].LengthSeconds ??= p.LengthSeconds;
-        var albumFor = await AlbumsAsync(toInsert, artists, ct);
+        var albumFor = await AlbumsAsync(toInsert, artists, create: true, ct);
         ForgetUnusedArtists();
 
         foreach (var p in toInsert)
@@ -378,8 +401,12 @@ public sealed class ScrobbleService(AppDbContext db, ScrobbleMetadataFetcher met
         return trackFor;
     }
 
-    /// <summary>Albums: same title key (editions folded) and a matching album-artist credit. The first credit stays.</summary>
-    private async Task<Dictionary<int, Album>> AlbumsAsync(IReadOnlyList<Prepared> items, Dictionary<string, Artist> artists, CancellationToken ct)
+    /// <summary>
+    /// Albums: same title key (editions folded) and a matching album-artist credit. The first credit stays. With
+    /// <paramref name="create"/>, unknown albums are added; without it they are left out of the result.
+    /// </summary>
+    private async Task<Dictionary<int, Album>> AlbumsAsync(
+        IReadOnlyList<Prepared> items, Dictionary<string, Artist> artists, bool create, CancellationToken ct)
     {
         var albumKeys = items.Where(p => p.AlbumKey is not null).Select(p => p.AlbumKey!).Distinct().ToList();
         if (albumKeys.Count == 0) return [];
@@ -412,6 +439,7 @@ public sealed class ScrobbleService(AppDbContext db, ScrobbleMetadataFetcher met
             var album = candidates.FirstOrDefault(c => c.Credit.Matches(credit)).Album;
             if (album is null)
             {
+                if (!create) continue;
                 album = new Album { Title = p.Album!, Key = p.AlbumKey! };
                 foreach (var artist in p.AlbumArtists.Select(n => artists[n.Key]).Distinct())
                     album.Artists.Add(new AlbumArtist { Artist = artist, Position = album.Artists.Count });
@@ -419,7 +447,7 @@ public sealed class ScrobbleService(AppDbContext db, ScrobbleMetadataFetcher met
                 db.Albums.Add(album);
             }
 
-            album.MusicBrainzId ??= p.AlbumMbid;
+            if (create) album.MusicBrainzId ??= p.AlbumMbid;
             albumFor[p.Index] = album;
         }
 

@@ -102,6 +102,14 @@ public class SocialTests : IClassFixture<MuseFmFactory>
         var page = await client.GetStringAsync("/feed");
         Assert.Contains("is listening to", page);
         Assert.Contains("Planet", page);
+        // The cards alone, for the page to refresh itself with: linked to the listener's pages.
+        Assert.Contains("data-refresh=\"/feed?handler=PlayingNow\"", page);
+        var cards = await client.GetStringAsync("/feed?handler=PlayingNow");
+        Assert.DoesNotContain("<html", cards);
+        Assert.Contains("<a href=\"/u/feed-two\">feed-two</a> is listening to", cards);
+        Assert.Matches("<a href=\"/u/feed-two/artist/[0-9]+\">Four Tet</a>", cards);
+        Assert.DoesNotContain("/track/", cards);
+        Assert.Equal(HttpStatusCode.Redirect, (await _factory.CreatePlainClient().GetAsync("/feed?handler=PlayingNow")).StatusCode);
         Assert.Contains("Cirrus", page);
         Assert.DoesNotContain("Archangel", page);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/feed?before={first.Next}")).StatusCode);

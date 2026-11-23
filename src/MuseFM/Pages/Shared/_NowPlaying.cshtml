@@ -1,0 +1,66 @@
+@model NowPlayingModel
+@inject MetadataService Metadata
+@{
+    var covers = Metadata.Enabled && ViewerPreferences.Current.ShowArtwork;
+}
+@foreach (var np in Model.Tracks)
+{
+    var url = Ui.UserUrl(np.UserName);
+    var trackUrl = np.TrackId is { } trackId ? $"{url}/track/{trackId}" : null;
+    var albumUrl = np.AlbumId is { } albumId ? $"{url}/album/{albumId}" : null;
+    <div class="card nowplaying">
+        @if (covers)
+        {
+            @* Without an href (nothing to link to yet) this is a plain box. *@
+            <a class="thumb" href="@(albumUrl ?? trackUrl)" tabindex="-1" aria-hidden="true">
+                @if (np.CoverUrl is not null)
+                {
+                    <img src="@np.CoverUrl" alt="" decoding="async">
+                }
+            </a>
+        }
+        else
+        {
+            <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>
+        }
+        <div class="nowplaying-text">
+            <div class="label">
+                @if (covers)
+                {
+                    <span class="eq small" aria-hidden="true"><i></i><i></i><i></i></span>
+                }
+                @if (Model.ShowUser)
+                {
+                    <span><a href="@url">@np.UserName</a> is listening to</span>
+                }
+                else
+                {
+                    <span>Now playing</span>
+                }
+            </div>
+            @if (trackUrl is not null)
+            {
+                <a class="title" href="@trackUrl">@np.Playing.Title</a>
+            }
+            else
+            {
+                <span class="title">@np.Playing.Title</span>
+            }
+            <div class="muted">
+                @Ui.ArtistLinks(np.UserName, np.Artists)
+                @if (np.Playing.Album is { } album)
+                {
+                    <text> · </text>
+                    @if (albumUrl is not null)
+                    {
+                        <a href="@albumUrl">@album</a>
+                    }
+                    else
+                    {
+                        @album
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}

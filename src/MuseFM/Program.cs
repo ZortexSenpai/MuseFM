@@ -99,6 +99,7 @@ builder.Services.AddScoped<SocialService>();
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<ProfileImages>();
 builder.Services.AddSingleton<NowPlayingStore>();
+builder.Services.AddScoped<NowPlayingService>();
 builder.Services.AddSingleton<ImportQueue>();
 builder.Services.AddHostedService<ImportWorker>();
 builder.Services.AddHttpClient<LastFmClient>(client =>

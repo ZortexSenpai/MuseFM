@@ -8,20 +8,11 @@
 <h1>Feed</h1>
 <p class="lede">What the people you follow are listening to.</p>
 
-@if (Model.PlayingNow.Count > 0)
+@if (!Model.Older)
 {
-    <div class="playing-now">
-        @foreach (var (name, np) in Model.PlayingNow)
-        {
-            <div class="card nowplaying">
-                <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>
-                <div>
-                    <div class="label"><a href="@Ui.UserUrl(name)">@name</a> is listening to</div>
-                    <span class="title">@np.Title</span>
-                    <span class="muted"> · @string.Join(", ", np.Artists)</span>
-                </div>
-            </div>
-        }
+    @* Always there, also while nobody plays anything: live.js fills it when someone starts. *@
+    <div class="playing-now" data-refresh="/feed?handler=PlayingNow" data-refresh-seconds="@NowPlayingModel.RefreshSeconds">
+        <partial name="_NowPlaying" model="Model.PlayingNow" />
     </div>
 }
 
