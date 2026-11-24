@@ -54,6 +54,7 @@ public enum ImportKind
     ListenBrainzJson,
     LastFmApi,
     MalojaApi,
+    SpotifyJson,
 }
 
 public enum ImportStatus
@@ -77,6 +78,12 @@ public sealed class ImportJob
 
     /// <summary>Uploaded file waiting to be processed; deleted when the job finishes.</summary>
     public string? StoredFile { get; set; }
+
+    /// <summary>Only scrobbles listened to at or after this time (Unix seconds) are imported; everything from the start when null.</summary>
+    public long? ListenedFrom { get; set; }
+
+    /// <summary>Only scrobbles listened to before this time (Unix seconds) are imported; everything up to now when null.</summary>
+    public long? ListenedBefore { get; set; }
 
     public int? Total { get; set; }
     public int Processed { get; set; }

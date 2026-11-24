@@ -26,17 +26,25 @@ public sealed class LastFmClient(HttpClient http, ConnectorSettings settings)
 
     public bool IsConfigured => settings.LastFmApiKey is not null;
 
-    /// <summary>Pages through the history, newest first.</summary>
-    public async IAsyncEnumerable<LastFmPage> GetRecentTracksAsync(string user, [EnumeratorCancellation] CancellationToken ct = default)
+    /// <summary>Pages through the history, or the part of it in <paramref name="range"/>, newest first.</summary>
+    public async IAsyncEnumerable<LastFmPage> GetRecentTracksAsync(
+        string user, ImportRange range = default, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var apiKey = settings.LastFmApiKey
                      ?? throw new InvalidOperationException("No Last.fm API key is configured (Admin → Metadata or MuseFM__LastFmApiKey).");
+
+        // Last.fm does not say whether its two ends count as inside the range, so ask for a second more than wanted at
+        // the start: whoever imports the scrobbles drops what lies outside.
+        var bounds = new List<(string, string)>();
+        if (range.From is { } from) bounds.Add(("from", (from - 1).ToString(CultureInfo.InvariantCulture)));
+        if (range.Before is { } before) bounds.Add(("to", before.ToString(CultureInfo.InvariantCulture)));
 
         var page = 1;
         int totalPages;
         do
         {
-            var args = new[] { ("user", user), ("limit", PageSize.ToString(CultureInfo.InvariantCulture)), ("page", page.ToString(CultureInfo.InvariantCulture)) };
+            (string, string)[] args =
+                [("user", user), ("limit", PageSize.ToString(CultureInfo.InvariantCulture)), ("page", page.ToString(CultureInfo.InvariantCulture)), .. bounds];
             using var document = await CallAsync(apiKey, "user.getrecenttracks", args, ct);
             if (!document.RootElement.TryGetProperty("recenttracks", out var recent))
                 throw new LastFmException(0, "Unexpected response from Last.fm.");

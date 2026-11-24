@@ -47,6 +47,200 @@ public class ImportExportTests : IClassFixture<MuseFmFactory>, IDisposable
         Assert.Equal(ImportKind.LastFmStatsJson, ImportFormats.Detect(WriteFile("lastfmstats-x.json", """{"username":"x","scrobbles":[{"track":"t","artist":"a","date":1600000000000}]}""")));
         Assert.Equal(ImportKind.ListenBrainzJson, ImportFormats.Detect(WriteFile("lb.json", """[{"listened_at":1,"track_metadata":{}}]""")));
         Assert.Null(ImportFormats.Detect(WriteFile("other.json", """{"hello":"world"}""")));
+
+        // Spotify: either export as a .json file, or the .zip Spotify sends; any other .zip is a ListenBrainz export.
+        Assert.Equal(ImportKind.SpotifyJson, ImportFormats.Detect(WriteFile("Streaming_History_Audio_2023_0.json", SpotifyExtended)));
+        Assert.Equal(ImportKind.SpotifyJson, ImportFormats.Detect(WriteFile("StreamingHistory_music_0.json", SpotifyAccountData)));
+        Assert.Equal(ImportKind.SpotifyJson, ImportFormats.Detect(WriteZip("my_spotify_data.zip",
+            ("Spotify Extended Streaming History/ReadMeFirst.pdf", "%PDF"), ("Spotify Extended Streaming History/Streaming_History_Audio_2023_0.json", SpotifyExtended))));
+        Assert.Equal(ImportKind.ListenBrainzJson, ImportFormats.Detect(WriteZip("listenbrainz.zip", ("listens/2023/1.jsonl", Listen))));
+        Assert.Null(ImportFormats.Detect(WriteFile("list.json", """[{"hello":"world"}]""")));
+    }
+
+    // Ends of plays in UTC. In Zurich (UTC+2 in May), "Roygbiv" began on 30 April 23:55, "Kid A" on 1 May 00:06 and
+    // "Idioteque" on 3 May 00:29.
+    private const string SpotifyExtended = """
+        [
+          { "ts": "2023-04-30T21:59:00Z", "platform": "android", "ms_played": 200000, "master_metadata_track_name": "Roygbiv", "master_metadata_album_artist_name": "Boards of Canada", "master_metadata_album_album_name": "Music Has the Right to Children", "spotify_track_uri": "spotify:track:1", "episode_name": null, "skipped": false },
+          { "ts": "2023-04-30T22:10:00Z", "platform": "android", "ms_played": 240000, "master_metadata_track_name": "Kid A", "master_metadata_album_artist_name": "Radiohead", "master_metadata_album_album_name": "Kid A", "spotify_track_uri": "spotify:track:2", "episode_name": null, "skipped": false },
+          { "ts": "2023-05-02T10:00:00Z", "platform": "osx", "ms_played": 180000, "master_metadata_track_name": "Treefingers", "master_metadata_album_artist_name": "Radiohead", "master_metadata_album_album_name": "Kid A", "spotify_track_uri": "spotify:track:3", "episode_name": null, "skipped": false },
+          { "ts": "2023-05-02T10:01:00Z", "platform": "osx", "ms_played": 29999, "master_metadata_track_name": "Optimistic", "master_metadata_album_artist_name": "Radiohead", "master_metadata_album_album_name": "Kid A", "spotify_track_uri": "spotify:track:4", "episode_name": null, "skipped": true },
+          { "ts": "2023-05-02T12:00:00Z", "platform": "osx", "ms_played": 1800000, "master_metadata_track_name": null, "master_metadata_album_artist_name": null, "master_metadata_album_album_name": null, "spotify_track_uri": null, "episode_name": "An episode", "episode_show_name": "A podcast", "skipped": false },
+          { "ts": "2023-05-02T22:30:00Z", "platform": "osx", "ms_played": 60000, "master_metadata_track_name": "Idioteque", "master_metadata_album_artist_name": "Radiohead", "master_metadata_album_album_name": "Kid A", "spotify_track_uri": "spotify:track:5", "episode_name": null, "skipped": false },
+          { "ts": "not a date", "ms_played": 60000, "master_metadata_track_name": "Morning Bell", "master_metadata_album_artist_name": "Radiohead" }
+        ]
+        """;
+
+    private const string SpotifyAccountData = """
+        [
+          { "endTime": "2023-05-01 12:34", "artistName": "Burial", "trackName": "Archangel", "msPlayed": 238000 },
+          { "endTime": "2023-05-01 12:35", "artistName": "Burial", "trackName": "Near Dark", "msPlayed": 1200 },
+          { "endTime": "2023-05-01 12:40", "artistName": "Unknown Artist", "trackName": "Unknown Track", "msPlayed": 200000 }
+        ]
+        """;
+
+    [Fact]
+    public void Spotify_ReadsBothExports_AndLeavesOutShortPlaysAndPodcasts()
+    {
+        var rows = SpotifyFormat.Read(WriteFile("Streaming_History_Audio_2023_1.json", SpotifyExtended)).ToList();
+
+        // The play of under 30 seconds and the podcast episode are not there at all; the play without a date failed.
+        Assert.Equal(["Roygbiv", "Kid A", "Treefingers", "Idioteque"], rows.Where(r => r.Input is not null).Select(r => r.Input!.Title));
+        Assert.Contains("Morning Bell", Assert.Single(rows, r => r.Input is null).Error);
+        var kidA = rows[1].Input!;
+        Assert.Equal(("Radiohead", "Kid A", 240, "import:spotify"), (kidA.Artists.Single(), kidA.Album, kidA.DurationSeconds, kidA.Origin));
+        // Spotify notes the end of a play; the scrobble is dated to its start.
+        Assert.Equal(new DateTimeOffset(2023, 4, 30, 22, 6, 0, TimeSpan.Zero).ToUnixTimeSeconds(), kidA.ListenedAt);
+
+        var account = Assert.Single(SpotifyFormat.Read(WriteFile("StreamingHistory_music_1.json", SpotifyAccountData))).Input!;
+        Assert.Equal(("Archangel", "Burial", null, 238), (account.Title, account.Artists.Single(), account.Album, account.DurationSeconds));
+        Assert.Equal(new DateTimeOffset(2023, 5, 1, 12, 30, 2, TimeSpan.Zero).ToUnixTimeSeconds(), account.ListenedAt);
+
+        Assert.Throws<InvalidDataException>(() => SpotifyFormat.Read(WriteFile("Userdata.json", """{"username":"me"}""")).ToList());
+    }
+
+    [Fact]
+    public void Spotify_ReadsTheHistoryFilesOfAnArchive_WithinTheSizeLimits()
+    {
+        var archive = WriteZip("spotify.zip",
+            ("MyData/Playlist1.json", """{"playlists":[]}"""),
+            ("MyData/StreamingHistory_music_0.json", SpotifyAccountData),
+            ("MyData/StreamingHistory_podcast_0.json", """[{ "endTime": "2023-05-01 13:00", "podcastName": "A podcast", "episodeName": "An episode", "msPlayed": 900000 }]"""),
+            ("MyData/endsong_0.json", SpotifyExtended));
+        Assert.Equal(["Archangel", "Roygbiv", "Kid A", "Treefingers", "Idioteque"],
+            SpotifyFormat.Read(archive).Where(r => r.Input is not null).Select(r => r.Input!.Title));
+
+        Assert.Contains("too large to import", Assert.Throws<InvalidDataException>(() => SpotifyFormat.Read(archive, maxDocumentBytes: 1000).ToList()).Message);
+        Assert.Contains("unpacks to more than", Assert.Throws<InvalidDataException>(() => SpotifyFormat.Read(archive, maxArchiveBytes: 1000).ToList()).Message);
+        Assert.Contains("no Spotify streaming history",
+            Assert.Throws<InvalidDataException>(() => SpotifyFormat.Read(WriteZip("other.zip", ("MyData/Playlist1.json", "{}"))).ToList()).Message);
+    }
+
+    [Fact]
+    public void Timeframe_IsWholeDaysInTheUsersTimeZone()
+    {
+        var zurich = TimeZoneInfo.FindSystemTimeZoneById("Europe/Zurich");
+        long Utc(int month, int day, int hour) => new DateTimeOffset(2023, month, day, hour, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
+
+        Assert.True(ImportRange.TryParse("2023-05-01", "2023-05-02", zurich, out var range, out _));
+        Assert.Equal(new ImportRange(Utc(4, 30, 22), Utc(5, 2, 22)), range);
+        Assert.True(range.Contains(Utc(4, 30, 22)));
+        Assert.True(range.Contains(Utc(5, 2, 22) - 1));
+        Assert.False(range.Contains(Utc(4, 30, 22) - 1));
+        Assert.False(range.Contains(Utc(5, 2, 22)));
+
+        // Either end can be left open, and so can both.
+        Assert.True(ImportRange.TryParse("2023-05-01", " ", zurich, out range, out _));
+        Assert.Equal(new ImportRange(Utc(4, 30, 22), null), range);
+        Assert.True(ImportRange.TryParse(null, "2023-01-31", TimeZoneInfo.Utc, out range, out _));
+        Assert.Equal(new ImportRange(null, Utc(2, 1, 0)), range);
+        Assert.True(ImportRange.TryParse(null, null, zurich, out range, out _));
+        Assert.True(range.Contains(0) && range.Contains(long.MaxValue));
+
+        Assert.False(ImportRange.TryParse("2023-05-02", "2023-05-01", zurich, out _, out var error));
+        Assert.Contains("after its last day", error);
+        Assert.False(ImportRange.TryParse("01.05.2023", null, zurich, out _, out error));
+        Assert.NotNull(error);
+        Assert.False(ImportRange.TryParse("0001-01-01", null, zurich, out _, out _));
+    }
+
+    [Fact]
+    public async Task SpotifyUpload_ImportsOnlyTheChosenTimeframe()
+    {
+        var (user, _) = await _factory.CreateUserAsync("import-spotify");
+        await _factory.WithScopeAsync(sp => sp.GetRequiredService<AppDbContext>().Users.Where(u => u.Id == user.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.TimeZoneId, "Europe/Zurich")));
+        var client = await _factory.SignInAsync("import-spotify");
+        var archive = WriteZip("my_spotify_data.zip", ("Spotify Extended Streaming History/Streaming_History_Audio_2023_0.json", SpotifyExtended));
+
+        async Task<ImportJob> UploadAsync(string from, string to, int skip)
+        {
+            using var form = new MultipartFormDataContent
+            {
+                { new StringContent(await MuseFmFactory.GetAntiforgeryTokenAsync(client, "/settings/import")), "__RequestVerificationToken" },
+                { new ByteArrayContent(await File.ReadAllBytesAsync(archive)), "file", "my_spotify_data.zip" },
+                { new StringContent(""), "format" },
+                { new StringContent(from), "from" },
+                { new StringContent(to), "to" },
+            };
+            Assert.Equal(System.Net.HttpStatusCode.Redirect, (await client.PostAsync("/settings/import?handler=Upload", form)).StatusCode);
+            for (var i = 0; i < 300; i++)
+            {
+                var job = await _factory.WithScopeAsync(sp => sp.GetRequiredService<AppDbContext>().ImportJobs.AsNoTracking()
+                    .Where(j => j.UserId == user.Id).OrderBy(j => j.Id).Skip(skip).FirstOrDefaultAsync());
+                if (job is { Status: ImportStatus.Completed or ImportStatus.Failed }) return job;
+                await Task.Delay(100);
+            }
+
+            throw new TimeoutException("The import did not finish.");
+        }
+
+        // 1 and 2 May in Zurich: what began late on 30 April or early on 3 May, local time, stays out.
+        var job = await UploadAsync("2023-05-01", "2023-05-02", skip: 0);
+        Assert.Equal((ImportStatus.Completed, ImportKind.SpotifyJson), (job.Status, job.Kind));
+        Assert.Equal((2, 0, 1), (job.Imported, job.Duplicates, job.Failed));
+        var titles = await _factory.WithScopeAsync(sp => sp.GetRequiredService<AppDbContext>().Scrobbles.AsNoTracking()
+            .Where(s => s.UserId == user.Id).OrderBy(s => s.ListenedAt).Select(s => s.Track.Title).ToListAsync());
+        Assert.Equal(["Kid A", "Treefingers"], titles);
+
+        var page = System.Net.WebUtility.HtmlDecode(await client.GetStringAsync("/settings/import"));
+        Assert.Contains("Import of my_spotify_data.zip (Spotify streaming history) started.", page);
+        Assert.Contains("Spotify streaming history · 1 May 2023 – 2 May 2023", page);
+
+        // Without a timeframe the rest follows; a timeframe that makes no sense starts nothing.
+        var all = await UploadAsync("", "", skip: 1);
+        Assert.Equal((2, 2, 1), (all.Imported, all.Duplicates, all.Failed));
+        Assert.Null(all.ListenedFrom ?? all.ListenedBefore);
+        using var backwards = new MultipartFormDataContent
+        {
+            { new StringContent(await MuseFmFactory.GetAntiforgeryTokenAsync(client, "/settings/import")), "__RequestVerificationToken" },
+            { new ByteArrayContent(await File.ReadAllBytesAsync(archive)), "file", "my_spotify_data.zip" },
+            { new StringContent("2023-05-02"), "from" },
+            { new StringContent("2023-05-01"), "to" },
+        };
+        await client.PostAsync("/settings/import?handler=Upload", backwards);
+        Assert.Contains("The first day of the timeframe is after its last day.", await client.GetStringAsync("/settings/import"));
+        Assert.Equal(2, await _factory.WithScopeAsync(sp => sp.GetRequiredService<AppDbContext>().ImportJobs.CountAsync(j => j.UserId == user.Id)));
+    }
+
+    private sealed class FakeLastFm(Func<System.Collections.Specialized.NameValueCollection, string> answer) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(answer(System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query)), Encoding.UTF8, "application/json"),
+            });
+    }
+
+    [Fact]
+    public async Task LastFmImport_AsksLastFmForTheTimeframe_AndDropsWhatLiesOutside()
+    {
+        const long from = 1_700_000_000, before = from + 86_400;
+        string Track(string name, long uts) =>
+            $$$"""{"name":"{{{name}}}","artist":{"#text":"Autechre","mbid":""},"album":{"#text":"Amber","mbid":""},"mbid":"","date":{"uts":"{{{uts}}}"}}""";
+        var asked = new System.Collections.Concurrent.ConcurrentQueue<(string? From, string? To)>();
+        var http = new FakeLastFm(query =>
+        {
+            if (query["method"] != "user.getrecenttracks") return """{"lovedtracks":{"track":[],"@attr":{"totalPages":"1"}}}""";
+            asked.Enqueue((query["from"], query["to"]));
+            // Whether Last.fm counts the two ends as inside is not documented: here it does.
+            var tracks = string.Join(",", Track("Too late", before), Track("Last", before - 1), Track("First", from), Track("Too early", from - 1));
+            return $$$$"""{"recenttracks":{"track":[{{{{tracks}}}}],"@attr":{"page":"1","totalPages":"1","total":"4"}}}""";
+        });
+        using var factory = new MuseFmFactory(new() { ["MuseFM:LastFmApiKey"] = "key" },
+            s => s.ConfigureHttpClientDefaults(b => b.ConfigurePrimaryHttpMessageHandler(() => http)));
+        var (user, _) = await factory.CreateUserAsync("import-lastfm");
+
+        var job = await factory.RunImportAsync(new ImportJob
+        {
+            UserId = user.Id, Kind = ImportKind.LastFmApi, Source = "someone", ListenedFrom = from, ListenedBefore = before,
+        });
+
+        Assert.Equal((ImportStatus.Completed, 2, 0), (job.Status, job.Imported, job.Failed));
+        Assert.Equal(((from - 1).ToString(), before.ToString()), Assert.Single(asked));
+        var titles = await factory.WithScopeAsync(sp => sp.GetRequiredService<AppDbContext>().Scrobbles.AsNoTracking()
+            .OrderBy(s => s.ListenedAt).Select(s => s.Track.Title).ToListAsync());
+        Assert.Equal(["First", "Last"], titles);
     }
 
     [Fact]

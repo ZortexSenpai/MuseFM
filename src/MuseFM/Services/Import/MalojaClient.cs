@@ -77,8 +77,13 @@ public sealed class MalojaClient(HttpClient http)
         return true;
     }
 
-    /// <summary>Pages through the history month by month, newest first, until everything Maloja counts has been read.</summary>
-    public async IAsyncEnumerable<MalojaPage> GetScrobblesAsync(string baseUrl, [EnumeratorCancellation] CancellationToken ct = default)
+    /// <summary>
+    /// Pages through the history month by month, newest first, until everything Maloja counts has been read. With a
+    /// <paramref name="range"/>, only the months that can hold scrobbles from it are read: whole months, so some of what
+    /// comes back lies outside of it.
+    /// </summary>
+    public async IAsyncEnumerable<MalojaPage> GetScrobblesAsync(
+        string baseUrl, ImportRange range = default, [EnumeratorCancellation] CancellationToken ct = default)
     {
         using (var info = await GetAsync(baseUrl, "serverinfo", ct))
         {
@@ -86,11 +91,21 @@ public sealed class MalojaClient(HttpClient http)
                 throw new MalojaException(NotMaloja(baseUrl));
         }
 
-        var total = await CountAsync(baseUrl, "", ct);
-        var seen = 0;
         // A server ahead of UTC may already be in the next month.
         var month = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1).AddMonths(1);
-        while (month >= Oldest)
+        if (range.Before is { } before)
+        {
+            var last = MonthOf(DateTimeOffset.FromUnixTimeSeconds(before) + ZoneSlack);
+            if (last < month) month = last;
+        }
+
+        var oldest = range.From is { } from ? MonthOf(DateTimeOffset.FromUnixTimeSeconds(from) - ZoneSlack) : Oldest;
+
+        // What is older than the months to read, and so never arrives.
+        var beyond = oldest > Oldest ? await CountAsync(baseUrl, "?to=" + Month(oldest.AddMonths(-1)), ct) : 0;
+        var total = Math.Max(0, await CountAsync(baseUrl, range.Before is null ? "" : "?to=" + Month(month), ct) - beyond);
+        var seen = 0;
+        while (month >= oldest)
         {
             var rows = await GetMonthAsync(baseUrl, month, ct);
             seen += rows.Count;
@@ -100,14 +115,16 @@ public sealed class MalojaClient(HttpClient http)
             if (seen >= total)
             {
                 // Everything counted at the start has arrived, unless new scrobbles came in meanwhile: check that nothing older is left.
-                var older = await CountAsync(baseUrl, "?to=" + Month(month.AddMonths(-1)), ct);
-                if (older == 0) yield break;
+                var older = month > oldest ? await CountAsync(baseUrl, "?to=" + Month(month.AddMonths(-1)), ct) - beyond : 0;
+                if (older <= 0) yield break;
                 total = seen + older;
             }
 
             month = month.AddMonths(-1);
         }
     }
+
+    private static DateOnly MonthOf(DateTimeOffset time) => new(time.Year, time.Month, 1);
 
     private async Task<int> CountAsync(string baseUrl, string query, CancellationToken ct)
     {

@@ -877,6 +877,9 @@ table.list tbody tr:hover td { background: color-mix(in srgb, var(--surface) 70%
 .status.Completed { color: var(--success); }
 .status.Failed { color: var(--danger); }
 .status.Running, .status.Queued { color: var(--accent); }
+.timeframe { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.timeframe input { flex: 1 1 140px; }
+.form-note { margin-top: 14px; }
 details.help { margin-top: 16px; color: var(--muted); font-size: .9rem; }
 details.help summary { cursor: pointer; font-weight: 650; }
 

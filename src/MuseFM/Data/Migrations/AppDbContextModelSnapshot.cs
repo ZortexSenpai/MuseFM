@@ -550,6 +550,12 @@ namespace MuseFM.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("ListenedBefore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ListenedFrom")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Message")
                         .HasColumnType("TEXT");
 

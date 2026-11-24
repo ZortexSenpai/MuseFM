@@ -26,6 +26,9 @@ public sealed class ImportModel(
     public bool LastFmEnabled => connectors.LastFmApiKey is not null;
     public TimeZoneInfo Zone { get; private set; } = TimeZoneInfo.Utc;
 
+    /// <summary>Today in the user's time zone: the last day a timeframe can end on.</summary>
+    public DateOnly Today { get; private set; }
+
     [TempData]
     public string? StatusMessage { get; set; }
 
@@ -36,6 +39,7 @@ public sealed class ImportModel(
     {
         var user = await users.GetUserAsync(User) ?? throw new InvalidOperationException("Signed-in user not found.");
         Zone = TimeZones.FindOrUtc(user.TimeZoneId);
+        Today = new LocalClock(Zone).Today;
         Jobs = await db.ImportJobs.AsNoTracking()
             .Where(j => j.UserId == user.Id)
             .OrderByDescending(j => j.CreatedAt)
@@ -44,9 +48,11 @@ public sealed class ImportModel(
         HasActiveJobs = Jobs.Any(j => j.Status is ImportStatus.Queued or ImportStatus.Running);
     }
 
-    public async Task<IActionResult> OnPostUploadAsync(IFormFile? file, string? format, CancellationToken ct)
+    public async Task<IActionResult> OnPostUploadAsync(IFormFile? file, string? format, string? from, string? to, CancellationToken ct)
     {
         if (file is null || file.Length == 0) return Fail("Please choose a file to upload.");
+        var (range, rangeError) = await ReadRangeAsync(from, to);
+        if (rangeError is not null) return Fail(rangeError);
         if (await QueueIsFullAsync(ct)) return Fail(QueueFull);
 
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
@@ -73,29 +79,33 @@ public sealed class ImportModel(
             Kind = kind.Value,
             Source = name.Length > 200 ? name[..200] : name,
             StoredFile = stored,
-        }, ct);
+        }, range, ct);
         StatusMessage = $"Import of {name} ({ImportFormats.Describe(kind.Value)}) started.";
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostLastFmAsync(string? lastFmUser, CancellationToken ct)
+    public async Task<IActionResult> OnPostLastFmAsync(string? lastFmUser, string? from, string? to, CancellationToken ct)
     {
         if (!LastFmEnabled) return Fail("Last.fm import is not configured on this server.");
         var name = TextKey.Clean(lastFmUser);
         if (name.Length is 0 or > 64) return Fail("Please enter your Last.fm username.");
+        var (range, rangeError) = await ReadRangeAsync(from, to);
+        if (rangeError is not null) return Fail(rangeError);
         if (await QueueIsFullAsync(ct)) return Fail(QueueFull);
 
-        await EnqueueAsync(new ImportJob { UserId = users.GetUserId(User)!, Kind = ImportKind.LastFmApi, Source = name }, ct);
+        await EnqueueAsync(new ImportJob { UserId = users.GetUserId(User)!, Kind = ImportKind.LastFmApi, Source = name }, range, ct);
         StatusMessage = $"Import from Last.fm user {name} started.";
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostMalojaAsync(string? malojaUrl, CancellationToken ct)
+    public async Task<IActionResult> OnPostMalojaAsync(string? malojaUrl, string? from, string? to, CancellationToken ct)
     {
         if (!MalojaClient.TryNormalizeUrl(malojaUrl, out var url, out var error)) return Fail(error!);
+        var (range, rangeError) = await ReadRangeAsync(from, to);
+        if (rangeError is not null) return Fail(rangeError);
         if (await QueueIsFullAsync(ct)) return Fail(QueueFull);
 
-        await EnqueueAsync(new ImportJob { UserId = users.GetUserId(User)!, Kind = ImportKind.MalojaApi, Source = url }, ct);
+        await EnqueueAsync(new ImportJob { UserId = users.GetUserId(User)!, Kind = ImportKind.MalojaApi, Source = url }, range, ct);
         StatusMessage = $"Import from the Maloja server at {url} started.";
         return RedirectToPage();
     }
@@ -111,8 +121,17 @@ public sealed class ImportModel(
                >= ImportLimits.MaxPendingJobs;
     }
 
-    private async Task EnqueueAsync(ImportJob job, CancellationToken ct)
+    /// <summary>The timeframe of an import form: its days are the user's, in their time zone.</summary>
+    private async Task<(ImportRange Range, string? Error)> ReadRangeAsync(string? from, string? to)
     {
+        var user = await users.GetUserAsync(User) ?? throw new InvalidOperationException("Signed-in user not found.");
+        return ImportRange.TryParse(from, to, TimeZones.FindOrUtc(user.TimeZoneId), out var range, out var error) ? (range, null) : (default, error);
+    }
+
+    private async Task EnqueueAsync(ImportJob job, ImportRange range, CancellationToken ct)
+    {
+        job.ListenedFrom = range.From;
+        job.ListenedBefore = range.Before;
         db.ImportJobs.Add(job);
         await db.SaveChangesAsync(ct);
         queue.Enqueue(job.Id);

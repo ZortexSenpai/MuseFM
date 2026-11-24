@@ -78,15 +78,16 @@ public sealed class ImportWorker(
         using var scope = scopes.CreateScope();
         var scrobbles = scope.ServiceProvider.GetRequiredService<ScrobbleService>();
         var feedback = (Stored: 0, Unmatched: 0);
+        var range = new ImportRange(job.ListenedFrom, job.ListenedBefore);
         try
         {
             if (job.Kind == ImportKind.LastFmApi)
             {
                 var client = scope.ServiceProvider.GetRequiredService<LastFmClient>();
-                await foreach (var page in client.GetRecentTracksAsync(job.Source, ct))
+                await foreach (var page in client.GetRecentTracksAsync(job.Source, range, ct))
                 {
                     job.Total = page.Total;
-                    await IngestAsync(job, page.Rows, scrobbles, ct);
+                    await IngestAsync(job, page.Rows, range, scrobbles, ct);
                     job.Message = $"Fetched page {page.Page} of {Math.Max(page.TotalPages, 1)}";
                     await jobDb.SaveChangesAsync(ct);
                 }
@@ -104,10 +105,10 @@ public sealed class ImportWorker(
                     await MayReachPrivateAddressesAsync(job.UserId, scope.ServiceProvider)
                         ? MalojaClient.AnyAddressClientName
                         : MalojaClient.PublicClientName));
-                await foreach (var page in client.GetScrobblesAsync(job.Source, ct))
+                await foreach (var page in client.GetScrobblesAsync(job.Source, range, ct))
                 {
                     job.Total = page.Total;
-                    await IngestAsync(job, page.Rows, scrobbles, ct);
+                    await IngestAsync(job, page.Rows, range, scrobbles, ct);
                     job.Message = $"Fetched back to {page.Month.ToString("MMMM yyyy", CultureInfo.InvariantCulture)}";
                     await jobDb.SaveChangesAsync(ct);
                 }
@@ -119,7 +120,7 @@ public sealed class ImportWorker(
 
                 foreach (var chunk in ImportFormats.Read(job.Kind, job.StoredFile).Chunk(ChunkSize))
                 {
-                    await IngestAsync(job, chunk, scrobbles, ct);
+                    await IngestAsync(job, chunk, range, scrobbles, ct);
                     await jobDb.SaveChangesAsync(ct);
                 }
 
@@ -169,16 +170,24 @@ public sealed class ImportWorker(
         return await users.FindByIdAsync(userId) is { } user && await users.IsInRoleAsync(user, Roles.Admin);
     }
 
-    private static async Task IngestAsync(ImportJob job, IReadOnlyList<ImportRow> rows, ScrobbleService scrobbles, CancellationToken ct)
+    /// <summary>Stores the scrobbles among the rows that lie in the timeframe of the import; the others are passed over.</summary>
+    private static async Task IngestAsync(
+        ImportJob job, IReadOnlyList<ImportRow> rows, ImportRange range, ScrobbleService scrobbles, CancellationToken ct)
     {
         var inputs = new List<ScrobbleInput>(rows.Count);
         foreach (var row in rows)
         {
-            if (row.Input is not null) inputs.Add(row.Input);
-            else job.ErrorSample ??= Truncate(row.Error, 1000);
+            if (row.Input is null)
+            {
+                job.Failed++;
+                job.ErrorSample ??= Truncate(row.Error, 1000);
+            }
+            else if (range.Contains(row.Input.ListenedAt))
+            {
+                inputs.Add(row.Input);
+            }
         }
 
-        job.Failed += rows.Count - inputs.Count;
         var outcomes = await scrobbles.IngestAsync(job.UserId, inputs, ct, fetchMetadata: false);
         foreach (var outcome in outcomes)
         {

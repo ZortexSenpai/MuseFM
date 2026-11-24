@@ -34,6 +34,15 @@ public static class Ui
 
     public static string Date(DateTime utc, TimeZoneInfo zone) => Local(utc, zone).ToString("d MMM yyyy", Inv);
 
+    /// <summary>The days from a Unix time up to, but not including, another; null when open at both ends.</summary>
+    public static string? Timeframe(long? from, long? before, TimeZoneInfo zone) => (from, before) switch
+    {
+        ({ } first, { } end) => $"{Date(first, zone)} – {Date(end - 1, zone)}",
+        ({ } first, null) => $"from {Date(first, zone)}",
+        (null, { } end) => $"until {Date(end - 1, zone)}",
+        _ => null,
+    };
+
     public static string DateAndTime(DateTime? utc, TimeZoneInfo zone) =>
         utc is null ? "—" : Local(utc.Value, zone).ToString("d MMM yyyy, " + Clock, Inv);
 

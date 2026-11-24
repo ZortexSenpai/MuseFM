@@ -32,7 +32,7 @@ Self-hosted listening statistics, in the spirit of Last.fm and Maloja. Music pla
 - Last.fm / Audioscrobbler 2.0 API: scrobbling, now playing and loves, plus the read methods widgets and tools use
   (`user.getRecentTracks`, `user.getTopArtists/Albums/Tracks`, `user.getLovedTracks`, `user.getFriends`, `track.getInfo`)
 - Per-client API keys (stored hashed, revocable)
-- Import: Maloja export, Last.fm CSV, lastfmstats.com JSON, ListenBrainz export, or directly from a Maloja server or a Last.fm account
+- Import: Maloja export, Last.fm CSV, lastfmstats.com JSON, ListenBrainz export, Spotify streaming history, or directly from a Maloja server or a Last.fm account — all of it, or only a timeframe you pick
 - Export: Maloja JSON (re-importable into Maloja), Last.fm CSV, and a ListenBrainz-style .zip with MusicBrainz ids and loves
 - Album covers, artist photos and biographies from Navidrome, ListenBrainz (MusicBrainz, Cover Art Archive, Wikipedia) and Last.fm, configured by the admin
 - One SQLite file, one Docker container
@@ -158,6 +158,7 @@ is still looking for a picture the item is asked again within the hour, and Malo
 | Maloja | `maloja_export_*.json` |
 | Last.fm | CSV from [lastfm-to-csv](https://benjaminbenben.com/lastfm-to-csv/) (headerless `artist,album,track,date` or with a `uts,…` header), or `lastfmstats-*.json` from lastfmstats.com |
 | ListenBrainz | export `.zip`, `.jsonl` or `.json` |
+| Spotify | the `.zip` Spotify sends when you request your data at [spotify.com/account/privacy](https://www.spotify.com/account/privacy/), or single `.json` files from it: the *Extended streaming history* (`Streaming_History_Audio_*.json`, complete, with albums) or the *Account data* (`StreamingHistory_music_*.json`, the last year) |
 | Maloja server | direct import through Maloja's API — enter the server address, e.g. `http://maloja:42010`; no key needed |
 | Last.fm account | direct API import (needs `MuseFM__LastFmApiKey`) |
 
@@ -166,6 +167,15 @@ so re-importing a file — or importing overlapping sources — is safe. Each us
 time; an export that is one JSON document, and each file inside a `.zip`, can be up to 256 MB. A Maloja server is read one month at a time, newest
 first, which keeps large histories fast; the address must be reachable from the MuseFM server. Only admins can import
 from a server on a private or local address, unless `MuseFM__ImportFromPrivateAddresses` is set.
+
+Every import can be limited to a **timeframe**: pick a first day, a last day, or both (days in your time zone, the last
+one included), and only scrobbles from then are imported. A Last.fm account and a Maloja server are then only asked for
+that part of the history. Loved tracks are imported whatever the timeframe.
+
+Spotify lists everything you started, so plays of under 30 seconds (what Spotify does not count as a stream either),
+podcast episodes and audiobooks are left out. Spotify notes when a play ended; the scrobble is dated to when it began.
+The two Spotify exports date plays differently (to the second and to the minute), so import only one of them for the
+same time, or the same plays arrive twice.
 
 Loved tracks come along with a Last.fm account import (`user.getLovedTracks`) and with a ListenBrainz export `.zip`
 (its `feedback.jsonl`; ListenBrainz feedback names recordings by MusicBrainz id, so it is matched to recordings the listens

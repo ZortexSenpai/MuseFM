@@ -1,0 +1,14 @@
+@model DateOnly
+@* The optional timeframe of an import form; the model is today, the last day it can end on. *@
+@{
+    var today = Model.ToString("yyyy-MM-dd");
+}
+<fieldset class="choice-group">
+    <legend>Timeframe <span class="muted">(optional)</span></legend>
+    <div class="timeframe">
+        <input type="date" name="from" aria-label="First day to import" max="@today">
+        <span class="muted">to</span>
+        <input type="date" name="to" aria-label="Last day to import" max="@today">
+    </div>
+    <p class="hint">Only scrobbles from these days are imported. Set one date to import everything from that day on, or up to it.</p>
+</fieldset>

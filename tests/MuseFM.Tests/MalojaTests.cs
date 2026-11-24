@@ -109,12 +109,12 @@ public class MalojaTests
     }
 
     /// <summary>Starts an import from the Import page and returns the page's status message.</summary>
-    private static async Task<string> StartImportAsync(HttpClient client, string address)
+    private static async Task<string> StartImportAsync(HttpClient client, string address, string from = "", string to = "")
     {
         var token = await MuseFmFactory.GetAntiforgeryTokenAsync(client, "/settings/import");
         var response = await client.PostAsync("/settings/import?handler=Maloja", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["__RequestVerificationToken"] = token, ["malojaUrl"] = address,
+            ["__RequestVerificationToken"] = token, ["malojaUrl"] = address, ["from"] = from, ["to"] = to,
         }));
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var html = await client.GetStringAsync("/settings/import");
@@ -180,6 +180,38 @@ public class MalojaTests
         await StartImportAsync(client, "http://maloja.test:42010");
         var again = await WaitForJobAsync(factory, skip: 1);
         Assert.Equal((ImportStatus.Completed, 0, 4), (again.Status, again.Imported, again.Duplicates));
+    }
+
+    [Fact]
+    public async Task Import_OfATimeframe_ReadsOnlyItsMonths_AndImportsOnlyItsDays()
+    {
+        long At(int year, int month, int day, int hour = 12) => new DateTimeOffset(year, month, day, hour, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
+        var http = new FakeMaloja(
+        [
+            Scrobble(At(2024, 1, 5), "Later", ["Portishead"], "Third"),
+            Scrobble(At(2023, 6, 20), "Same month, after", ["Portishead"], "Third"),
+            Scrobble(At(2023, 6, 10, 23), "Last day", ["Portishead"], "Dummy"),
+            Scrobble(At(2023, 5, 15), "In between", ["Portishead"], "Dummy"),
+            Scrobble(At(2023, 4, 20, 0), "First day", ["Portishead"], "Dummy"),
+            Scrobble(At(2023, 4, 19, 23), "Same month, before", ["Portishead"], "Dummy"),
+            Scrobble(At(2021, 3, 1), "Earlier", ["Portishead"], "Dummy"),
+        ]);
+        using var factory = Factory(http);
+        var client = await RegisterAsync(factory);
+
+        await StartImportAsync(client, "http://maloja.test:42010", from: "2023-04-20", to: "2023-06-10");
+        var job = await WaitForJobAsync(factory);
+
+        Assert.Equal((ImportStatus.Completed, 3, 0, 0), (job.Status, job.Imported, job.Duplicates, job.Failed));
+        Assert.Equal((At(2023, 4, 20, 0), At(2023, 6, 11, 0)), (job.ListenedFrom, job.ListenedBefore));
+        var titles = await factory.WithScopeAsync(sp => sp.GetRequiredService<AppDbContext>().Scrobbles.AsNoTracking()
+            .OrderBy(s => s.ListenedAt).Select(s => s.Track.Title).ToListAsync());
+        Assert.Equal(["First day", "In between", "Last day"], titles);
+
+        // Whole months come back, so the count covers what shares a month with the timeframe - and nothing beyond.
+        Assert.Equal(5, job.Total);
+        var months = http.Requests.Where(u => u.AbsolutePath == "/apis/mlj_1/scrobbles").Select(u => HttpUtility.ParseQueryString(u.Query)["in"]).ToList();
+        Assert.Equal(["2023/06", "2023/05", "2023/04"], months);
     }
 
     [Fact]

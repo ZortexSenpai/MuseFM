@@ -1,3 +1,5 @@
+using System.IO.Compression;
+
 namespace MuseFM.Services.Import;
 
 /// <summary>
@@ -28,6 +30,18 @@ public static class ImportLimits
         stream.Dispose();
         throw new InvalidDataException(TooLarge(maxBytes));
     }
+
+    /// <summary>
+    /// Opens a file of a .zip for reading up to a size: a small archive can unpack to gigabytes, and the sizes written
+    /// in it are whatever its author wanted them to be.
+    /// </summary>
+    /// <param name="unpacked">What was unpacked from the archive before this file.</param>
+    public static SizeLimitedStream OpenEntry(ZipArchiveEntry entry, long maxEntryBytes, long maxArchiveBytes, long unpacked) =>
+        maxArchiveBytes - unpacked < maxEntryBytes
+            ? new SizeLimitedStream(entry.Open(), Math.Max(0, maxArchiveBytes - unpacked),
+                $"This archive unpacks to more than {Megabytes(maxArchiveBytes)}, which is too much to import.")
+            : new SizeLimitedStream(entry.Open(), maxEntryBytes,
+                $"The archive contains a file of more than {Megabytes(maxEntryBytes)}, which is too large to import.");
 
     public static string TooLarge(long maxBytes) =>
         $"This file is too large to import in one piece (more than {Megabytes(maxBytes)}). Split it into several files, or import a ListenBrainz export as the .zip it came in.";

@@ -109,7 +109,7 @@ public static class ListenBrainzFormat
         {
             var name = entry.FullName.ToLowerInvariant();
             if (!name.Contains("feedback") || !(name.EndsWith(".jsonl") || name.EndsWith(".json"))) continue;
-            using var stream = Unpack(entry, maxEntryBytes, maxArchiveBytes, unpacked);
+            using var stream = ImportLimits.OpenEntry(entry, maxEntryBytes, maxArchiveBytes, unpacked);
             using var counted = new Unpacked(stream, bytes => unpacked += bytes);
             using var reader = new StreamReader(stream);
             while (reader.ReadLine() is { } line)
@@ -243,7 +243,7 @@ public static class ListenBrainzFormat
                 var name = entry.FullName.ToLowerInvariant();
                 if (name.Contains("feedback") || name.Contains("pinned") || !(name.EndsWith(".jsonl") || name.EndsWith(".json")))
                     continue;
-                using var stream = Unpack(entry, maxDocumentBytes, maxArchiveBytes, unpacked);
+                using var stream = ImportLimits.OpenEntry(entry, maxDocumentBytes, maxArchiveBytes, unpacked);
                 using var counted = new Unpacked(stream, bytes => unpacked += bytes);
                 foreach (var row in ReadStream(stream, skipNonListens: true, maxDocumentBytes))
                     yield return row;
@@ -256,18 +256,6 @@ public static class ListenBrainzFormat
         foreach (var row in ReadStream(file, skipNonListens: false, maxDocumentBytes))
             yield return row;
     }
-
-    /// <summary>
-    /// Opens a file of a .zip for reading up to a size: a small archive can unpack to gigabytes, and the sizes written
-    /// in it are whatever its author wanted them to be.
-    /// </summary>
-    /// <param name="unpacked">What was unpacked from the archive before this file.</param>
-    private static SizeLimitedStream Unpack(ZipArchiveEntry entry, long maxEntryBytes, long maxArchiveBytes, long unpacked) =>
-        maxArchiveBytes - unpacked < maxEntryBytes
-            ? new SizeLimitedStream(entry.Open(), Math.Max(0, maxArchiveBytes - unpacked),
-                $"This archive unpacks to more than {ImportLimits.Megabytes(maxArchiveBytes)}, which is too much to import.")
-            : new SizeLimitedStream(entry.Open(), maxEntryBytes,
-                $"The archive contains a file of more than {ImportLimits.Megabytes(maxEntryBytes)}, which is too large to import.");
 
     /// <summary>Reports how much of a file was unpacked once it is done with, also when reading stopped early.</summary>
     private sealed class Unpacked(SizeLimitedStream stream, Action<long> report) : IDisposable

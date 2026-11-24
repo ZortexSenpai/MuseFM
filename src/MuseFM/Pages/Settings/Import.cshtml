@@ -17,7 +17,7 @@
     <div class="alert @(Model.StatusIsError ? "error" : "success")">@Model.StatusMessage</div>
 }
 
-<p class="muted">Imports run in the background. Scrobbles you already have (same timestamp) are skipped, so importing the same file twice is safe.</p>
+<p class="muted">Imports run in the background. Scrobbles you already have (same timestamp) are skipped, so importing the same file twice is safe. Every import can be limited to a timeframe; without one, the whole history is imported.</p>
 
 <div class="grid-2">
     <section class="card">
@@ -35,8 +35,10 @@
                     <option value="LastFmCsv">Last.fm CSV (lastfm-to-csv)</option>
                     <option value="LastFmStatsJson">lastfmstats.com JSON</option>
                     <option value="ListenBrainzJson">ListenBrainz export (.json / .jsonl / .zip)</option>
+                    <option value="SpotifyJson">Spotify streaming history (.zip / .json)</option>
                 </select>
             </label>
+            <partial name="_ImportTimeframe" model="Model.Today" />
             <button type="submit" class="button primary">Upload and import</button>
         </form>
         <details class="help">
@@ -45,6 +47,7 @@
                 <li><strong>Maloja:</strong> import directly from your server (right), or run <code>maloja export</code> or use the export in Maloja's admin panel.</li>
                 <li><strong>Last.fm:</strong> import directly from your account (right), or download a CSV from <code>benjaminbenben.com/lastfm-to-csv</code> or a JSON from <code>lastfmstats.com</code>.</li>
                 <li><strong>ListenBrainz:</strong> Settings → Export data on listenbrainz.org.</li>
+                <li><strong>Spotify:</strong> request your data at <code>spotify.com/account/privacy</code> and upload the <code>.zip</code> Spotify sends you. The <em>Extended streaming history</em> is your complete history, with albums; the <em>Account data</em> covers the last year. Import only one of the two for the same time: their timestamps differ, so the same plays would be imported twice. Plays of under 30 seconds and podcasts are left out.</li>
             </ul>
         </details>
     </section>
@@ -55,8 +58,12 @@
             @if (Model.LastFmEnabled)
             {
                 <p class="muted">Fetches your complete scrobble history from Last.fm. Your Last.fm profile's recent listening must be public. Large histories take a few minutes.</p>
-                <form method="post" asp-page-handler="LastFm" class="inline-form">
-                    <input name="lastFmUser" placeholder="Last.fm username" required maxlength="64" aria-label="Last.fm username">
+                <form method="post" asp-page-handler="LastFm">
+                    <label class="field">
+                        <span>Last.fm username</span>
+                        <input name="lastFmUser" required maxlength="64" autocomplete="off" spellcheck="false">
+                    </label>
+                    <partial name="_ImportTimeframe" model="Model.Today" />
                     <button type="submit" class="button primary">Import</button>
                 </form>
             }
@@ -70,12 +77,16 @@
         <section class="card">
             <h2>Import from Maloja</h2>
             <p class="muted">Fetches your complete history straight from your Maloja server, with every credited artist and the albums. Maloja needs no API key for this.</p>
-            <form method="post" asp-page-handler="Maloja" class="inline-form">
-                <input name="malojaUrl" inputmode="url" placeholder="http://192.168.1.10:42010" required maxlength="@MalojaClient.MaxUrlLength"
-                       aria-label="Maloja server address" autocomplete="url" spellcheck="false">
+            <form method="post" asp-page-handler="Maloja">
+                <label class="field">
+                    <span>Maloja server address</span>
+                    <input name="malojaUrl" inputmode="url" placeholder="http://192.168.1.10:42010" required maxlength="@MalojaClient.MaxUrlLength"
+                           autocomplete="url" spellcheck="false">
+                </label>
+                <partial name="_ImportTimeframe" model="Model.Today" />
                 <button type="submit" class="button primary">Import</button>
             </form>
-            <p class="hint">The address must be reachable from the MuseFM server. When both run in Docker, use Maloja's container name, e.g. <code>http://maloja:42010</code>. Unless the server is set up otherwise, only administrators can import from a private or local address like these.</p>
+            <p class="hint form-note">The address must be reachable from the MuseFM server. When both run in Docker, use Maloja's container name, e.g. <code>http://maloja:42010</code>. Unless the server is set up otherwise, only administrators can import from a private or local address like these.</p>
         </section>
     </div>
 </div>
@@ -99,7 +110,7 @@
                     <tr>
                         <td>
                             <span class="title">@job.Source</span>
-                            <div class="sub">@ImportFormats.Describe(job.Kind)</div>
+                            <div class="sub">@ImportFormats.Describe(job.Kind)@(Ui.Timeframe(job.ListenedFrom, job.ListenedBefore, Model.Zone) is { } timeframe ? $" · {timeframe}" : "")</div>
                         </td>
                         <td>
                             <span class="status @job.Status">@job.Status</span>
