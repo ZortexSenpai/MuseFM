@@ -18,6 +18,9 @@ public sealed class TrackModel(
     public StatPeriod Period { get; private set; } = null!;
     public int FirstYear { get; private set; }
     public bool ShowCover { get; private set; }
+
+    /// <summary>Release year and genres, as far as the metadata connectors knew them.</summary>
+    public TrackFacts Facts { get; private set; } = null!;
     public IReadOnlyList<ActivityBucket> Activity { get; private set; } = [];
     public IReadOnlyList<ChartEntry> Albums { get; private set; } = [];
     public Paged<ScrobbleRow> History { get; private set; } = null!;
@@ -46,6 +49,7 @@ public sealed class TrackModel(
         Summary = summary;
         FirstYear = await stats.FirstYearAsync(Owner.Id, Zone, ct);
         ShowCover = metadata.Enabled && ViewerPreferences.Current.ShowArtwork;
+        Facts = await stats.TrackFactsAsync(Owner.Id, track, ct);
         Activity = await stats.ActivityAsync(Owner.Id, Period, subject, ct);
         Albums = (await stats.TopAlbumsAsync(Owner.Id, Period.Window, 1, AlbumCount, subject, ct)).Items;
         History = await stats.RecentAsync(Owner.Id, Math.Max(1, p), HistorySize, subject, Period.Window, ct);

@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using MuseFM.Data;
 using MuseFM.Data.Entities;
+using MuseFM.Services.Metadata;
 
 namespace MuseFM.Services;
 
@@ -57,6 +58,15 @@ public sealed record ListenSummary(int Scrobbles, int AllTimeScrobbles, long Fir
 
 /// <summary>An album or track of the catalog with its credited artists.</summary>
 public sealed record CatalogItem(int Id, string Title, IReadOnlyList<ArtistRef> Artists, int? LengthSeconds, string? MusicBrainzId);
+
+/// <summary>The album a track's release year is taken from.</summary>
+/// <param name="Listened">Whether the user played the track from that album, i.e. has a page for it.</param>
+public sealed record TrackRelease(int Year, int AlbumId, string Album, bool Listened);
+
+/// <summary>What the metadata connectors know about a track. They describe albums and artists, so it comes from those.</summary>
+/// <param name="Release">The earliest album it was scrobbled with whose year is known: a best-of is newer than its songs.</param>
+/// <param name="Genres">Those of the album it is scrobbled with most, or else of its artist; empty when none are known.</param>
+public sealed record TrackFacts(TrackRelease? Release, IReadOnlyList<string> Genres);
 
 public sealed class Paged<T>(IReadOnlyList<T> items, int page, int pageSize, int total)
 {
@@ -334,6 +344,54 @@ public sealed class StatsService(AppDbContext db)
         if (track is null) return null;
         var artists = await TrackArtistsAsync([id], ct);
         return new CatalogItem(track.Id, track.Title, artists.GetValueOrDefault(id) ?? [], track.LengthSeconds, track.MusicBrainzId);
+    }
+
+    /// <summary>
+    /// Release year and genres of a track, from the albums anyone scrobbled it with: like its cover, they belong to the
+    /// shared catalog. Genres are picked the way the insights count them (InsightsService.MusicMixAsync).
+    /// </summary>
+    /// <param name="userId">Whose page it is shown on.</param>
+    public async Task<TrackFacts> TrackFactsAsync(string userId, CatalogItem track, CancellationToken ct = default)
+    {
+        var plays = await db.Scrobbles.AsNoTracking()
+            .Where(s => s.TrackId == track.Id && s.AlbumId != null)
+            .GroupBy(s => s.AlbumId)
+            .Select(g => new { AlbumId = g.Key, Count = g.Count(), Mine = g.Count(s => s.UserId == userId) })
+            .ToListAsync(ct);
+        // The most played first.
+        var albumIds = plays.OrderByDescending(p => p.Count).ThenBy(p => p.AlbumId).Select(p => p.AlbumId!.Value).ToList();
+        var known = await db.AlbumMetadata.AsNoTracking()
+            .Where(m => albumIds.Contains(m.AlbumId) && (m.Genres != null || m.ReleaseYear != null))
+            .Select(m => new { m.AlbumId, m.Album.Title, m.Genres, m.ReleaseYear })
+            .ToDictionaryAsync(m => m.AlbumId, ct);
+        var albums = albumIds.Where(known.ContainsKey).Select(id => known[id]).ToList();
+
+        var release = albums.Where(a => a.ReleaseYear is not null).MinBy(a => a.ReleaseYear) is { } first
+            ? new TrackRelease(first.ReleaseYear!.Value, first.AlbumId, first.Title, plays.Any(p => p.AlbumId == first.AlbumId && p.Mine > 0))
+            : null;
+        var genres = albums.Select(a => GenreNames.Split(a.Genres)).FirstOrDefault(g => g.Count > 0);
+        foreach (var artist in track.Artists)
+        {
+            if (genres is { Count: > 0 }) break;
+            genres = await ArtistGenresAsync(artist.Id, ct);
+        }
+
+        return new TrackFacts(release, genres ?? []);
+    }
+
+    /// <summary>An artist's own genres, or else the most common ones of their albums.</summary>
+    private async Task<IReadOnlyList<string>> ArtistGenresAsync(int artistId, CancellationToken ct)
+    {
+        var own = await db.ArtistMetadata.AsNoTracking().Where(m => m.ArtistId == artistId).Select(m => m.Genres).FirstOrDefaultAsync(ct);
+        if (own is not null) return GenreNames.Split(own);
+
+        // Two small queries instead of a join, which SQLite plans badly.
+        var albumIds = await db.AlbumArtists.AsNoTracking().Where(a => a.ArtistId == artistId).Select(a => a.AlbumId).ToListAsync(ct);
+        var ofAlbums = await db.AlbumMetadata.AsNoTracking()
+            .Where(m => albumIds.Contains(m.AlbumId) && m.Genres != null)
+            .Select(m => m.Genres)
+            .ToListAsync(ct);
+        return GenreNames.MostCommon(ofAlbums.Select(GenreNames.Split));
     }
 
     public async Task<IReadOnlyList<ActivityBucket>> ActivityAsync(string userId, StatPeriod period, StatSubject? subject = null, CancellationToken ct = default)

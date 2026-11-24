@@ -2,6 +2,7 @@
 @model MuseFM.Pages.Users.TrackModel
 @{
     var track = Model.Track;
+    var facts = Model.Facts;
     var header = Model.Header("tracks");
     ViewData["Title"] = $"{track.Title} · {Model.UserName}";
     var path = $"{Model.ProfileUrl}/track/{track.Id}";
@@ -56,15 +57,48 @@
         <p class="byline">@Ui.ArtistLinks(Model.UserName, track.Artists)</p>
         <p class="muted">
             @Ui.Number(Model.Summary.AllTimeScrobbles) scrobbles · first @Ui.Date(Model.Summary.FirstListen, Model.Zone) · last @Ui.Relative(Model.Summary.LastListen, Model.Zone)
-            @if (track.LengthSeconds is { } length)
-            {
-                <span> · @Ui.Duration(length) long</span>
-            }
             @if (Model.ListeningTime is { } time)
             {
                 <span title="Scrobbles × track length"> · about @Ui.Elapsed(time) listened</span>
             }
         </p>
+        @if (facts.Release is not null || facts.Genres.Count > 0 || track.LengthSeconds is not null)
+        {
+            <dl class="about">
+                @if (facts.Release is { } release)
+                {
+                    @* The year is the album's: for a track only played from a best-of, that is the best-of's year. *@
+                    <div title="The earliest album this track was scrobbled with">
+                        <dt>Released</dt>
+                        <dd>
+                            @release.Year <span class="muted">on</span>
+                            @if (release.Listened)
+                            {
+                                <a href="@Model.ProfileUrl/album/@release.AlbumId">@release.Album</a>
+                            }
+                            else
+                            {
+                                @release.Album
+                            }
+                        </dd>
+                    </div>
+                }
+                @if (facts.Genres.Count > 0)
+                {
+                    <div title="Genres of the album this track is usually scrobbled with, or else of its artist">
+                        <dt>@(facts.Genres.Count == 1 ? "Genre" : "Genres")</dt>
+                        <dd>@string.Join(" · ", facts.Genres)</dd>
+                    </div>
+                }
+                @if (track.LengthSeconds is { } seconds)
+                {
+                    <div>
+                        <dt>Length</dt>
+                        <dd>@Ui.Duration(seconds)</dd>
+                    </div>
+                }
+            </dl>
+        }
         @if (Model.IsOwner || Model.IsObsession)
         {
             <div class="obsession-bar">

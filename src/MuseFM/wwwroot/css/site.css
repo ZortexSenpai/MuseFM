@@ -515,6 +515,10 @@ input[type=file] { padding: 7px; }
 .bio p { margin: 0 0 .7em; }
 .bio summary { cursor: pointer; color: var(--pop-2); font-weight: 700; margin-bottom: .7em; width: max-content; }
 .source { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: rgba(246, 241, 231, .7); margin: 10px 0 0; }
+.about { display: flex; flex-wrap: wrap; gap: 12px 26px; margin: 16px 0 0; }
+.about > div { min-width: 0; border-left: 3px solid rgba(246, 241, 231, .3); padding-left: 11px; }
+.about dt { font-stretch: 116%; font-size: .6rem; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--pop-2); }
+.about dd { margin: 3px 0 0; font-weight: 650; overflow-wrap: anywhere; }
 
 /* A record half out of its sleeve. --label colours the label; the hole is punched last. */
 .sleeve { position: relative; flex-shrink: 0; width: 184px; margin-right: 94px; }

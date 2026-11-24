@@ -130,7 +130,8 @@ An administrator can enable **metadata connectors** for the whole server under *
 
 Genres, release years and track lengths feed the Insights page: top genres, release decades and listening time. A scrobble
 takes the genres of its album, or else of its artist; a track gets its length from the track list of an album it was scrobbled
-with, unless a client reported one.
+with, unless a client reported one. Track pages show them too: the genres, the length, and the year of the earliest album
+the track was scrobbled with (so a song only ever played from a best-of shows the best-of's year, next to its title).
 
 Connectors are asked in the order shown on the page (rearrange with the arrows). For each artist or album the first connector
 with an answer wins, field by field — for example a biography from Navidrome and a photo from Wikimedia Commons. Saving a

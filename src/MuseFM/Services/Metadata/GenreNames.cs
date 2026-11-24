@@ -11,6 +11,9 @@ namespace MuseFM.Services.Metadata;
 public static class GenreNames
 {
     public const int MaxPerItem = 5;
+
+    /// <summary>Genres an artist without any of their own takes over from their albums.</summary>
+    public const int Inherited = 3;
     private const int MaxLength = 48;
 
     // Common tags that say nothing about the music.
@@ -60,6 +63,18 @@ public static class GenreNames
 
         return sb.ToString().TrimEnd();
     }
+
+    /// <summary>
+    /// The genres most of the given items have, e.g. the albums of an artist who has none of their own. Spellings are
+    /// merged by <see cref="Key"/>.
+    /// </summary>
+    public static IReadOnlyList<string> MostCommon(IEnumerable<IReadOnlyList<string>> items, int count = Inherited) =>
+        items.SelectMany(genres => genres)
+            .GroupBy(Key)
+            .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal)
+            .Take(count)
+            .Select(g => g.First())
+            .ToList();
 
     public static string? Join(IReadOnlyList<string>? genres) => genres is { Count: > 0 } ? string.Join('\n', genres) : null;
 

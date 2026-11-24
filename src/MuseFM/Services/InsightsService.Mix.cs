@@ -22,9 +22,6 @@ public sealed record MusicMix(
 
 public sealed partial class InsightsService
 {
-    /// <summary>Genres an artist without any of their own takes over from their albums.</summary>
-    private const int InheritedGenres = 3;
-
     /// <summary>
     /// Genres and release decades of the scrobbles in the window. A scrobble has the genres of its album; without those,
     /// the genres of the first of its artists that has any, be it their own or the most common ones of their albums.
@@ -66,14 +63,7 @@ public sealed partial class InsightsService
         {
             if (ownGenres.TryGetValue(artistId, out var own)) return own;
             if (inherited.TryGetValue(artistId, out var cached)) return cached;
-            var common = artistAlbums![artistId]
-                .SelectMany(albumId => albumGenres.GetValueOrDefault(albumId) ?? [])
-                .GroupBy(GenreNames.Key)
-                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal)
-                .Take(InheritedGenres)
-                .Select(g => g.First())
-                .ToList();
-            return inherited[artistId] = common;
+            return inherited[artistId] = GenreNames.MostCommon(artistAlbums![artistId].Select(albumId => albumGenres.GetValueOrDefault(albumId) ?? []));
         }
 
         // Spellings of a genre are merged by key and shown the way most plays spell it.

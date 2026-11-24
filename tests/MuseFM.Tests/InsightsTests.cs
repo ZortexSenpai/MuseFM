@@ -237,6 +237,63 @@ public class InsightsTests : IClassFixture<MuseFmFactory>
     }
 
     [Fact]
+    public async Task TrackPage_ShowsReleaseYearAndGenresOfItsAlbums()
+    {
+        var (user, _) = await _factory.CreateUserAsync("facts-user");
+        var day = Today.AddDays(-2);
+        ScrobbleInput On(string artist, string title, string? album, int minute) => S(artist, title, At(day, 10, minute)) with { Album = album };
+        await IngestAsync(user.Id,
+            // Mostly played from a best-of that came out later and has no genres.
+            On("Facts Alpha", "Song", "Facts Best Of", 0), On("Facts Alpha", "Song", "Facts Best Of", 1), On("Facts Alpha", "Song", "Facts Original", 2),
+            // No album: takes the genres of Alpha's albums, and has no year.
+            On("Facts Alpha", "Loose", null, 3),
+            // Nothing is known about this one.
+            On("Facts Delta", "Nothing", null, 4));
+        await _factory.WithScopeAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<MuseFM.Data.AppDbContext>();
+            int Album(string title) => db.Albums.Single(a => a.Title == title).Id;
+            var now = DateTime.UtcNow;
+            db.AlbumMetadata.AddRange(
+                new() { AlbumId = Album("Facts Best Of"), ReleaseYear = 2005, UpdatedAt = now, RefreshAfter = now },
+                new() { AlbumId = Album("Facts Original"), Genres = "Rock\nBlues Rock", ReleaseYear = 1979, UpdatedAt = now, RefreshAfter = now });
+            return await db.SaveChangesAsync();
+        });
+
+        async Task<(int Id, TrackFacts Facts)> FactsAsync(string title) => await _factory.WithScopeAsync(async sp =>
+        {
+            var stats = sp.GetRequiredService<StatsService>();
+            var id = sp.GetRequiredService<MuseFM.Data.AppDbContext>().Tracks.Single(t => t.Title == title).Id;
+            return (id, await stats.TrackFactsAsync(user.Id, (await stats.TrackAsync(id))!));
+        });
+
+        var (song, songFacts) = await FactsAsync("Song");
+        Assert.Equal((1979, "Facts Original", true), (songFacts.Release!.Year, songFacts.Release.Album, songFacts.Release.Listened));
+        Assert.Equal(["Rock", "Blues Rock"], songFacts.Genres);
+        var (_, looseFacts) = await FactsAsync("Loose");
+        Assert.Null(looseFacts.Release);
+        Assert.Equal(["Blues Rock", "Rock"], looseFacts.Genres);
+        var (nothing, nothingFacts) = await FactsAsync("Nothing");
+        Assert.Equal((null, 0), (nothingFacts.Release, nothingFacts.Genres.Count));
+
+        var client = _factory.CreatePlainClient();
+        var page = await client.GetStringAsync($"/u/facts-user/track/{song}");
+        Assert.Contains("<dt>Released</dt>", page);
+        Assert.Contains("1979 <span class=\"muted\">on</span>", page);
+        Assert.Contains(">Facts Original</a>", page);
+        Assert.Contains("<dt>Genres</dt>", page);
+        Assert.DoesNotContain("class=\"about\"", await client.GetStringAsync($"/u/facts-user/track/{nothing}"));
+
+        // Someone who only played it from the best-of has no page for the original album to link to.
+        var (other, _) = await _factory.CreateUserAsync("facts-other");
+        await IngestAsync(other.Id, On("Facts Alpha", "Song", "Facts Best Of", 5));
+        var otherPage = await client.GetStringAsync($"/u/facts-other/track/{song}");
+        Assert.Contains("1979 <span class=\"muted\">on</span>", otherPage);
+        Assert.Contains("Facts Original", otherPage);
+        Assert.DoesNotContain(">Facts Original</a>", otherPage);
+    }
+
+    [Fact]
     public async Task MusicMix_CountsGenresAndReleaseDecades()
     {
         var (user, _) = await _factory.CreateUserAsync("mix-user");
